@@ -22,11 +22,11 @@ import java.io.InputStreamReader;
  * <p>
  * You can e.g. apply a accent color by replacing #000001 with your accentColor string.
  * <p>
- * simpleLineFilterAndroidTextView output is intended to be used at simple Android TextViews,
+ * FILTER_ANDROID_TEXTVIEW output is intended to be used at simple Android TextViews,
  * were a limited set of html tags is supported. This allow to still display e.g. a simple
  * CHANGELOG.md file without inlcuding a WebView for showing HTML, or other additional UI-libraries.
  * <p>
- * simpleLineFilterHtmlPart is intended to be used at engines understanding most common HTML tags.
+ * FILTER_HTMLPART is intended to be used at engines understanding most common HTML tags.
  * <p>
  * You can use this anywhere you want, no backlink/attribution required, but I would appreciate it.
  */
@@ -36,7 +36,7 @@ public class SimpleMarkdownParser {
         String filterLine(String line);
     }
 
-    public static final SimpleLineFilter simpleLineFilterAndroidTextView = new SimpleLineFilter() {
+    public static final SimpleLineFilter FILTER_ANDROID_TEXTVIEW = new SimpleLineFilter() {
         @Override
         public String filterLine(String line) {
             // TextView supports a limited set of html tags, most notably
@@ -48,9 +48,10 @@ public class SimpleMarkdownParser {
                     .replaceAll("^# ([^<]*)", "<br/><big><big><big><b><font color='#000000'>$1</font></b></big></big></big><br/><br/>") // h1 (DEP: h2,h3)
                     .replaceAll("!\\[(.*?)\\]\\((.*?)\\)", "<a href=\\'$2\\'>$1</a>") // img
                     .replaceAll("\\[(.*?)\\]\\((.*?)\\)", "<a href=\\'$2\\'>$1</a>") // a href (DEP: img)
+                    .replaceAll("<(http|https):\\/\\/(.*)>", "<a href='$1://$2'>$1://$2</a>") // a href (DEP: img)
                     .replaceAll("^(-|\\*) ([^<]*)", "<font color='#000001'>&#8226;</font> $2  ") // unordered list + end line
                     .replaceAll("^  (-|\\*) ([^<]*)", "&nbsp;&nbsp;<font color='#000001'>&#8226;</font> $2  ") // unordered list2 + end line
-                    .replaceAll("`([^<]*)`", "<i>$1</i>") // code
+                    .replaceAll("`([^<]*)`", "<font face='monospace'>$1</font>") // code
                     .replace("\\*", "●") // temporary replace escaped star symbol
                     .replaceAll("\\*\\*([^<]*)\\*\\*", "<b>$1</b>") // bold (DEP: temp star)
                     .replaceAll("\\*([^<]*)\\*", "<i>$1</i>") // italic (DEP: temp star code)
@@ -58,11 +59,11 @@ public class SimpleMarkdownParser {
                     .replaceAll("  $", "<br/>") // new line (DEP: ul)
             ;
             return !line.endsWith("<br/>") && !line.endsWith("<nobr/>")
-                    && !line.trim().isEmpty() ? line + "<br/>" : line;
+                    ? line + "<br/>" : line;
         }
     };
 
-    public static final SimpleLineFilter simpleLineFilterHtmlPart = new SimpleLineFilter() {
+    public static final SimpleLineFilter FILTER_HTMLPART = new SimpleLineFilter() {
         @Override
         public String filterLine(String line) {
             line = line
@@ -71,6 +72,7 @@ public class SimpleMarkdownParser {
                     .replaceAll("^## ([^<]*)", "<h2>$1</h2><nobr/>") /// h2 (DEP: h3)
                     .replaceAll("^# ([^<]*)", "<h1>$1</h1><nobr/>") // h1 (DEP: h2,h3)
                     .replaceAll("!\\[(.*?)\\]\\((.*?)\\)", "<img src=\\'$2\\' alt='$1' />") // img
+                    .replaceAll("<(http|https):\\/\\/(.*)>", "<a href='$1://$2'>$1://$2</a>") // a href (DEP: img)
                     .replaceAll("\\[(.*?)\\]\\((.*?)\\)", "<a href=\\'$2\\'>$1</a>") // a href (DEP: img)
                     .replaceAll("^(-|\\*) ([^<]*)", "<font color='#000001'>&#8226;</font> $2  ") // unordered list + end line
                     .replaceAll("^  (-|\\*) ([^<]*)", "&nbsp;&nbsp;<font color='#000001'>&#8226;</font> $2  ") // unordered list2 + end line
@@ -82,15 +84,22 @@ public class SimpleMarkdownParser {
                     .replaceAll("  $", "<br/>") // new line (DEP: ul)
             ;
             return !line.endsWith("<br/>") && !line.endsWith("<nobr/>")
-                    && !line.trim().isEmpty() ? line + "<br/>" : line;
+                    ? line + "<br/>" : line;
         }
     };
 
-    public static String simpleMarkdownParse(String filepath, SimpleLineFilter simpleLineFilter) throws IOException {
-        return simpleMarkdownParse(new FileInputStream(filepath), simpleLineFilter, "");
+    //########################
+    //##
+    //##     Members
+    //##
+    //########################
+    private String html;
+
+    public SimpleMarkdownParser parse(String filepath, SimpleLineFilter simpleLineFilter) throws IOException {
+        return parse(new FileInputStream(filepath), simpleLineFilter, "");
     }
 
-    public static String simpleMarkdownParse(InputStream inputStream, SimpleLineFilter simpleLineFilter, String lineMdPrefix) throws IOException {
+    public SimpleMarkdownParser parse(InputStream inputStream, SimpleLineFilter simpleLineFilter, String lineMdPrefix) throws IOException {
         StringBuilder sb = new StringBuilder();
         BufferedReader br = null;
         String line;
@@ -102,6 +111,7 @@ public class SimpleMarkdownParser {
                 sb.append("\n");
             }
         } catch (IOException rethrow) {
+            html = "";
             throw rethrow;
         } finally {
             if (br != null) {
@@ -111,40 +121,82 @@ public class SimpleMarkdownParser {
                 }
             }
         }
-        return sb.toString();
+        html = sb.toString().trim();
+        return this;
     }
 
-    public static String replaceUlCharacter(String html, String replacment) {
-        return html.replace("&#8226;", replacment);
+    public String getHtml() {
+        return html;
+    }
+
+    public SimpleMarkdownParser setHtml(String html) {
+        this.html = html;
+        return this;
+    }
+
+    public SimpleMarkdownParser removeMultiNewlines() {
+        html = html.replace("\n", "").replaceAll("(<br/>){3,}", "<br/><br/>");
+        return this;
+    }
+
+    public SimpleMarkdownParser replaceBulletCharacter(String replacment) {
+        html = html.replace("&#8226;", replacment);
+        return this;
+    }
+
+    public SimpleMarkdownParser replaceColor(String hexColor, int newIntColor) {
+        html = html.replace(hexColor, colorToHexString(newIntColor));
+        return this;
     }
 
     public static String colorToHexString(int intColor) {
         return String.format("#%06X", 0xFFFFFF & intColor);
     }
+
+    @Override
+    public String toString() {
+        return html != null ? html : "";
+    }
 }
 
 /*
     // Apply to Android TextView:
-    String html = SimpleMarkdownParser.simpleMarkdownParse(
-            context.getResources().openRawResource(R.raw.changelog),
-            SimpleMarkdownParser.simpleLineFilterAndroidTextView, ""
-    );
-    textContributors.setText(new SpannableString(Html.fromHtml(html)));
+    textView.setText(new SpannableString(Html.fromHtml(htmlFromParser)));
 
     // As wrapper method, includes applying accent color
-    public void loadRawMarkdownToTextView(@RawRes int rawMdFile, TextView textView, String prepend) {
-        Context context = textView.getContext();
+    public static String loadMarkdownFromRawForTextView(Context context, @RawRes int rawMdFile, String prepend) {
         try {
-            String html = SimpleMarkdownParser.simpleMarkdownParse(
-                    context.getResources().openRawResource(rawMdFile),
-                    SimpleMarkdownParser.simpleLineFilterAndroidTextView, prepend
-            );
-            html = html
-                    .replace("&#8226;", "*")
-                    .replace("#000001", SimpleMarkdownParser.colorToHexString(ContextCompat.getColor(context, R.color.accent)));
-            textView.setText(new SpannableString(Html.fromHtml(html)));
+            return new SimpleMarkdownParser()
+                    .parse(context.getResources().openRawResource(rawMdFile),
+                            SimpleMarkdownParser.FILTER_ANDROID_TEXTVIEW, prepend)
+                    .replaceColor("#000001", ContextCompat.getColor(context, R.color.accent))
+                    .removeMultiNewlines().replaceBulletCharacter("*").getHtml();
         } catch (IOException e) {
             e.printStackTrace();
+            return "";
         }
+    }
+
+    // Show HTML a TextView in a scrollable Dialog
+    public static void showDialogWithHtmlTextView(Context context, String html, @StringRes int resTitleId) {
+        LinearLayout layout = new LinearLayout(context);
+        TextView textView = new TextView(context);
+        ScrollView root = new ScrollView(context);
+        int margin = (int) TypedValue.applyDimension(TypedValue.COMPLEX_UNIT_DIP, 20,
+                context.getResources().getDisplayMetrics());
+        LinearLayout.LayoutParams layoutParams = new LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.MATCH_PARENT);
+        layoutParams.setMargins(margin, 0, margin, 0);
+        layout.setLayoutParams(layoutParams);
+
+        layout.addView(textView);
+        root.addView(layout);
+
+        textView.setText(new SpannableString(Html.fromHtml(html)));
+        AlertDialog.Builder dialog = new AlertDialog.Builder(context)
+                .setPositiveButton(android.R.string.ok, null)
+                .setTitle(resTitleId)
+                .setView(root);
+        dialog.show();
     }
  */
