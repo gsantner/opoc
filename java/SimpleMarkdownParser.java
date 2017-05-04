@@ -43,9 +43,9 @@ public class SimpleMarkdownParser {
             // a href, b, big, font size&color, i, li, small, u
             line = line
                     .replace("~°", "&nbsp;&nbsp;") // double space/half tab
-                    .replaceAll("^### ([^<]*)", "<br/><big><b><font color='#000000'>$1</font></b></big>") // h3
-                    .replaceAll("^## ([^<]*)", "<br/><big><big><b><font color='#000000'>$1</font></b></big></big><br/><br/>") /// h2 (DEP: h3)
-                    .replaceAll("^# ([^<]*)", "<br/><big><big><big><b><font color='#000000'>$1</font></b></big></big></big><br/><br/>") // h1 (DEP: h2,h3)
+                    .replaceAll("^### ([^<]*)", "<br/><big><b><font color='#000000'>$1</font></b></big>  ") // h3
+                    .replaceAll("^## ([^<]*)", "<br/><big><big><b><font color='#000000'>$1</font></b></big></big><br/>  ") // h2 (DEP: h3)
+                    .replaceAll("^# ([^<]*)", "<br/><big><big><big><b><font color='#000000'>$1</font></b></big></big></big><br/>  ") // h1 (DEP: h2,h3)
                     .replaceAll("!\\[(.*?)\\]\\((.*?)\\)", "<a href=\\'$2\\'>$1</a>") // img
                     .replaceAll("\\[(.*?)\\]\\((.*?)\\)", "<a href=\\'$2\\'>$1</a>") // a href (DEP: img)
                     .replaceAll("<(http|https):\\/\\/(.*)>", "<a href='$1://$2'>$1://$2</a>") // a href (DEP: img)
@@ -58,8 +58,7 @@ public class SimpleMarkdownParser {
                     .replace("●", "*") // restore escaped star symbol (DEP: b,i)
                     .replaceAll("  $", "<br/>") // new line (DEP: ul)
             ;
-            return !line.endsWith("<br/>") && !line.endsWith("<nobr/>")
-                    ? line + "<br/>" : line;
+            return line.isEmpty() ? line + "<br/>" : line;
         }
     };
 
@@ -68,9 +67,9 @@ public class SimpleMarkdownParser {
         public String filterLine(String line) {
             line = line
                     .replaceAll("~°", "&nbsp;&nbsp;") // double space/half tab
-                    .replaceAll("^### ([^<]*)", "<h3>$1</h3><nobr/>") // h3
-                    .replaceAll("^## ([^<]*)", "<h2>$1</h2><nobr/>") /// h2 (DEP: h3)
-                    .replaceAll("^# ([^<]*)", "<h1>$1</h1><nobr/>") // h1 (DEP: h2,h3)
+                    .replaceAll("^### ([^<]*)", "<h3>$1</h3>") // h3
+                    .replaceAll("^## ([^<]*)", "<h2>$1</h2>") /// h2 (DEP: h3)
+                    .replaceAll("^# ([^<]*)", "<h1>$1</h1>") // h1 (DEP: h2,h3)
                     .replaceAll("!\\[(.*?)\\]\\((.*?)\\)", "<img src=\\'$2\\' alt='$1' />") // img
                     .replaceAll("<(http|https):\\/\\/(.*)>", "<a href='$1://$2'>$1://$2</a>") // a href (DEP: img)
                     .replaceAll("\\[(.*?)\\]\\((.*?)\\)", "<a href=\\'$2\\'>$1</a>") // a href (DEP: img)
@@ -83,8 +82,7 @@ public class SimpleMarkdownParser {
                     .replace("●", "*") // restore escaped star symbol (DEP: b,i)
                     .replaceAll("  $", "<br/>") // new line (DEP: ul)
             ;
-            return !line.endsWith("<br/>") && !line.endsWith("<nobr/>")
-                    ? line + "<br/>" : line;
+            return line.isEmpty() ? line + "<br/>" : line;
         }
     };
 
@@ -181,6 +179,7 @@ public class SimpleMarkdownParser {
     public static void showDialogWithHtmlTextView(Context context, String html, @StringRes int resTitleId) {
         LinearLayout layout = new LinearLayout(context);
         TextView textView = new TextView(context);
+        textView.setMovementMethod(LinkMovementMethod.getInstance());
         ScrollView root = new ScrollView(context);
         int margin = (int) TypedValue.applyDimension(TypedValue.COMPLEX_UNIT_DIP, 20,
                 context.getResources().getDisplayMetrics());
