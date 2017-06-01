@@ -73,11 +73,13 @@ public class AdBlock {
 
     public boolean isAdHost(String urlS) {
         if (urlS != null && !urlS.isEmpty() && urlS.startsWith("http")) {
-
-            URI url = null;
             try {
-                url = new URI(urlS);
-                return adblockHosts.contains(url.getHost()) || adblockHosts.contains("www." + url.getHost());
+                URI url = new URI(urlS);
+                String host = url.getHost().trim();
+                if (host.startsWith("www.") && host.length() >= 4) {
+                    host = host.substring(4);
+                }
+                return adblockHosts.contains(host) || adblockHosts.contains("www." + host);
             } catch (URISyntaxException e) {
                 e.printStackTrace();
             }
