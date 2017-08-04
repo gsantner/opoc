@@ -5,7 +5,7 @@
  * worth it, you can buy me a coke in return. Provided as is without any kind
  * of warranty. No attribution required.                  - Gregor Santner
  *
- * License: Creative Commons Zero (CC0 1.0)
+ * License of this file: Creative Commons Zero (CC0 1.0)
  *  http://creativecommons.org/publicdomain/zero/1.0/
  * ----------------------------------------------------------------------------
  */
@@ -24,11 +24,13 @@ public WebResourceResponse shouldInterceptRequest(WebView view, String url) {
             : super.shouldInterceptRequest(view, url);
 }
 */
-package io.github.gsantner.util;
+package io.github.gsantner.opoc.util;
 
 import android.content.Context;
 import android.util.Log;
 import android.webkit.WebResourceResponse;
+
+import APPPACK.R;
 
 import java.io.BufferedReader;
 import java.io.ByteArrayInputStream;
@@ -42,11 +44,10 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 
-import APPACK.R;
-
 /**
  * Simple Host-Based AdBlocker
  */
+@SuppressWarnings({"WeakerAccess", "SpellCheckingInspection"})
 public class AdBlock {
     private static final AdBlock instance = new AdBlock();
 
@@ -163,7 +164,7 @@ public class AdBlock {
                 if (resFilename.startsWith("adblock_domains__")) {
                     adblockResIds.add(resId);
                 }
-            } catch (IllegalAccessException ignored) {
+            } catch (IllegalAccessException | IllegalArgumentException ignored) {
             }
         }
         return adblockResIds;
