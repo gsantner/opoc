@@ -1,20 +1,13 @@
 /*
- * ---------------------------------------------------------------------------- *
- * Gregor Santner <gsantner.github.io> wrote this file. You can do whatever
- * you want with this stuff. If we meet some day, and you think this stuff is
- * worth it, you can buy me a coke in return. Provided as is without any kind
- * of warranty. No attribution required.                  - Gregor Santner
+ * ------------------------------------------------------------------------------
+ * Gregor Santner <gsantner.github.io> wrote this. You can do whatever you want
+ * with it. If we meet some day, and you think it is worth it, you can buy me a
+ * coke in return. Provided as is without any kind of warranty. Do not blame or
+ * sue me if something goes wrong. No attribution required.    - Gregor Santner
  *
- * License of this file: Creative Commons Zero (CC0 1.0)
+ * License: Creative Commons Zero (CC0 1.0)
  *  http://creativecommons.org/publicdomain/zero/1.0/
  * ----------------------------------------------------------------------------
- */
-
- /*
- * Get updates:
- *  https://github.com/gsantner/onePieceOfCode/blob/master/java/aboutActivity/AboutActivity.java
- * A simple activity to show information about the app.
- * Intended to use together: SimpleMarkdownParser, Helpers, AboutActivity and it's xml-layout.
  */
 
 package APPPACK.activity;
@@ -109,18 +102,21 @@ public class AboutActivity extends AppCompatActivity {
         }
     }
 
-    @OnClick(R.id.about__activity__text_app_version)
-    public void onVersionClicked(View v) {
-        Helpers.get().openWebpageInExternalBrowser(getString(R.string.app_www_source));
-    }
-
     @OnClick({R.id.about__activity__text_app_version, R.id.about__activity__button_third_party_licenses, R.id.about__activity__button_app_license})
     public void onButtonClicked(View v) {
         Context context = v.getContext();
         switch (v.getId()) {
             case R.id.about__activity__text_app_version: {
-                HelpersA.get(this).openWebpageInExternalBrowser(getString(R.string.app_www_source));
-                break;
+              try {
+                  HelpersA.get(this).showDialogWithHtmlTextView(R.string.changelog, new SimpleMarkdownParser().parse(
+                          getResources().openRawResource(R.raw.changelog),
+                          "", SimpleMarkdownParser.FILTER_ANDROID_TEXTVIEW, SimpleMarkdownParser.FILTER_CHANGELOG
+                          ).getHtml()
+                  );
+              } catch (IOException e) {
+                  e.printStackTrace();
+              }
+              break;
             }
             case R.id.about__activity__button_app_license: {
                 HelpersA.get(this).showDialogWithHtmlTextView(R.string.licenses, Helpers.get().readTextfileFromRawRes(R.raw.license, "", ""), false, null);
