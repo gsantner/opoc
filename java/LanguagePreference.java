@@ -112,14 +112,16 @@ public class LanguagePreference extends ListPreference {
         Collections.sort(languages);
 
         // Show in UI
-        String[] entries = new String[languages.size() + 1];
-        String[] entryval = new String[languages.size() + 1];
+        String[] entries = new String[languages.size() + 2];
+        String[] entryval = new String[languages.size() + 2];
         for (int i = 0; i < languages.size(); i++) {
-            entries[i + 1] = languages.get(i).split(";")[0];
-            entryval[i + 1] = languages.get(i).split(";")[1];
+            entries[i + 2] = languages.get(i).split(";")[0];
+            entryval[i + 2] = languages.get(i).split(";")[1];
         }
         entries[0] = "System";
         entryval[0] = "";
+        entries[1] = "English";
+        entryval[1] = "en";
 
         setEntries(entries);
         setEntryValues(entryval);
