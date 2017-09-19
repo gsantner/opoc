@@ -72,18 +72,18 @@ public class AboutActivity extends AppCompatActivity {
         textLicense.setMovementMethod(LinkMovementMethod.getInstance());
         textContributors.setMovementMethod(LinkMovementMethod.getInstance());
 
-        ContextUtils ContextUtils = ContextUtils.get();
-        ContextUtils.setHtmlToTextView(textTeam,
-                ContextUtils.get().loadMarkdownForTextViewFromRaw(R.raw.maintainers, "")
+        ContextUtils cu = ContextUtils.get();
+        cu.setHtmlToTextView(textTeam,
+                cu.loadMarkdownForTextViewFromRaw(R.raw.maintainers, "")
         );
 
-        ContextUtils.setHtmlToTextView(textContributors,
-                ContextUtils.get().loadMarkdownForTextViewFromRaw(R.raw.contributors, "")
+        cu.setHtmlToTextView(textContributors,
+                cu.loadMarkdownForTextViewFromRaw(R.raw.contributors, "")
         );
 
         // License text MUST be shown
         try {
-            ContextUtils.setHtmlToTextView(textLicense,
+            cu.setHtmlToTextView(textLicense,
                     SimpleMarkdownParser.get().parse(getString(R.string.copyright_license_text_official).replace("\n", "  \n"),
                             "", SimpleMarkdownParser.FILTER_ANDROID_TEXTVIEW).getHtml()
             );
