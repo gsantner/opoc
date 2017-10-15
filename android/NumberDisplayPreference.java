@@ -18,8 +18,9 @@ import android.util.AttributeSet;
 import android.view.View;
 import android.widget.ImageView;
 
+import net.gsantner.opoc.util.ContextUtils;
+
 import io.github.froodyapp.R;
-import io.github.froodyapp.util.ContextUtils;
 
 @SuppressWarnings({"unused", "WeakerAccess"})
 public class NumberDisplayPreference extends Preference {
@@ -58,7 +59,7 @@ public class NumberDisplayPreference extends Preference {
     public void setValue(int newValue, int textSize) {
         if (_bitmap == null || _currentValue != newValue) {
             _currentValue = newValue;
-            _bitmap = ContextUtils.get().drawTextToBitmap(R.drawable.empty_64dp, String.valueOf(_currentValue), textSize);
+            _bitmap = new ContextUtils(getContext()).drawTextToDrawable(R.drawable.empty_64dp, String.valueOf(_currentValue), textSize);
         }
 
         if (_icon != null) {
