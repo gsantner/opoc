@@ -9,7 +9,7 @@
 *  http://creativecommons.org/publicdomain/zero/1.0/
 * ----------------------------------------------------------------------------
 */
-package net.gsantner.opoc.ui;
+package net.gsantner.opoc.preference.nonsupport;
 
 import android.content.Context;
 import android.graphics.Bitmap;

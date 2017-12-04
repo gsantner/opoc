@@ -12,13 +12,13 @@
 
 /*
  * Define element in Preferences-XML:
-    <net.gsantner.opoc.ui.FontPreference
+    <net.gsantner.opoc.preference.nonsupport.FontPreference
         android:icon="@drawable/ic_title_black_24dp"
         android:defaultValue="@string/default_font_family"
         android:key="@string/pref_key__font_family"
         android:title="@string/pref_title__font_choice" />
  */
-package net.gsantner.opoc.ui;
+package net.gsantner.opoc.preference.nonsupport;
 
 import android.annotation.TargetApi;
 import android.content.Context;

@@ -38,13 +38,13 @@ static String[] getUsedAndroidLanguages() {
  * Summary: Change language of this app. Restart app for changes to take effect
 
  * Define element in Preferences-XML:
-    <net.gsantner.opoc.ui.LanguagePreference
+    <net.gsantner.opoc.preference.nonsupport.LanguagePreference
         android:icon="@drawable/ic_language_black_24dp"
         android:key="@string/pref_key__language"
         android:summary="@string/pref_desc__language"
         android:title="@string/pref_title__language"/>
  */
-package net.gsantner.opoc.ui;
+package net.gsantner.opoc.preference.nonsupport;
 
 import android.annotation.TargetApi;
 import android.content.Context;

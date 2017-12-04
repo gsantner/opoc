@@ -1,4 +1,4 @@
-package net.gsantner.opoc.activity;
+package net.gsantner.opoc.preference.nonsupport;
 
 import android.app.Activity;
 import android.content.Context;
