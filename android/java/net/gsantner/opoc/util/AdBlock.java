@@ -30,6 +30,8 @@ import android.content.Context;
 import android.util.Log;
 import android.webkit.WebResourceResponse;
 
+import com.github.dfa.diaspora_android.R;
+
 import java.io.BufferedReader;
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
@@ -41,8 +43,6 @@ import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
-
-import APPPACK.R;
 
 /**
  * Simple Host-Based AdBlocker

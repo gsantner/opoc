@@ -44,7 +44,8 @@ public class SttCommander {
     public static final Pattern PATTERN_CONTEXTS = Pattern.compile("\\B(?:\\@)(\\w+)");
     public static final Pattern PATTERN_DONE = Pattern.compile("(?m)(^[Xx]) (.*)$");
     public static final Pattern PATTERN_DATE = Pattern.compile("(?:^|\\s|:)(" + PT_DATE + ")(?:$|\\s)");
-    public static final Pattern PATTERN_KEY_VALUE_PAIRS = Pattern.compile("(?i)([a-z]+):([a-z0-9_-]+)");
+    public static final Pattern PATTERN_KEY_VALUE_PAIRS__TAG_ONLY = Pattern.compile("(?i)([a-z]+):([a-z0-9_-]+)");
+    public static final Pattern PATTERN_KEY_VALUE_PAIRS = Pattern.compile("(?i)((?:[a-z]+):(?:[a-z0-9_-]+))");
     public static final Pattern PATTERN_PRIORITY_ANY = Pattern.compile("(?:^|\\n)\\(([A-Za-z])\\)\\s");
     public static final Pattern PATTERN_PRIORITY_A = Pattern.compile("(?:^|\\n)\\(([Aa])\\)\\s");
     public static final Pattern PATTERN_PRIORITY_B = Pattern.compile("(?:^|\\n)\\(([Bb])\\)\\s");
@@ -54,6 +55,13 @@ public class SttCommander {
     public static final Pattern PATTERN_PRIORITY_F = Pattern.compile("(?:^|\\n)\\(([Ff])\\)\\s");
     public static final Pattern PATTERN_COMPLETION_DATE = Pattern.compile("(?:^|\\n)(?:[Xx] )(" + PT_DATE + ")");
     public static final Pattern PATTERN_CREATION_DATE = Pattern.compile("(?:^|\\n)(?:[Xx] " + PT_DATE + " )?(" + PT_DATE + ")");
+
+    // Tasks from inside full text
+    public static class SttTasksInTextRange {
+        public final List<SttTaskWithParserInfo> tasks = new ArrayList<>();
+        public int startIndex = -1;
+        public int endIndex = -1;
+    }
 
     //
     // Singleton
@@ -261,6 +269,42 @@ public class SttCommander {
 
 
         return new String[]{left, right};
+    }
+
+    // Find all lines that are between first and second index param
+    // These can be anywhere in a line and will expand to line start and ending
+    public SttTasksInTextRange findTasksBetweenIndex(String text, int indexSomewhereInLineStart, int indexSomewhereInLineEnd) {
+        final SttTasksInTextRange found = new SttTasksInTextRange();
+        final SttCommander sttcmd = SttCommander.get();
+        int i = indexSomewhereInLineStart;
+
+        // Special case: Cursor position on file ending -> go back by one char
+        if (i == text.length()) {
+            i--;
+        }
+
+        while (i >= 0 && i <= indexSomewhereInLineEnd && i < text.length()) {
+            final SttTaskWithParserInfo task = sttcmd.parseTask(text, i);
+            found.tasks.add(task);
+            if (found.startIndex == -1) {
+                found.startIndex = task.getLineOffsetInText();
+                i = found.startIndex;
+            }
+            i += task.getTaskLine().length() + 1; // +1 for linefeed
+            found.endIndex = i;
+        }
+
+        // Delete till the end of file if we are over the end
+        if (!text.isEmpty() && found.endIndex > text.length()) {
+            found.endIndex = text.length();
+        }
+
+        // Finally delete
+        if (found.startIndex >= 0 && found.startIndex < text.length() && found.endIndex >= 0 && found.endIndex <= text.length()) {
+            return found;
+        } else {
+            return new SttTasksInTextRange();
+        }
     }
 
 
