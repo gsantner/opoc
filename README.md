@@ -1,20 +1,13 @@
-# onePieceOfCode
+# onePieceOfCode (opoc)
 Snippets & Code fragments fitting (mostly) into one file.  
 This repository usually contains code that was done by me in various projects of mine.  
-Some parts get extracted, relicensed to public domain and placed in this repository.  
+If the license allows it, or I am the sole author of code parts, some parts get extracted, 
+relicensed to Apache 2.0 license and placed in this repository.  
 
-## License
-
-This license applies to all files in this repository, unless other written in the file.
-
-```
- Gregor Santner <gsantner.net> wrote this. You can do whatever you want
- with it. If we meet some day, and you think it is worth it, you can buy me a
- coke in return. Provided as is without any kind of warranty. Do not blame or
- sue me if something goes wrong. No attribution required.    - Gregor Santner
-
- License: Creative Commons Zero (CC0 1.0)
-  http://creativecommons.org/publicdomain/zero/1.0/
-```
-
-
+## Licensing
+The following applies to all files in this repository, unless other written in the file itself.  
+In general contents of this repository are licensed Apache 2.0.  
+Still I may (and do) allow other projects to use content from this repository under a different  
+license or e.g. without a copyright notice.  
+If you contribute to this repository you can still use the contents of this repo under the Apache 2.0
+terms, but agree that the contents of your contributions may get relicensed.

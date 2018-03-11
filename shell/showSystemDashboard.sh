@@ -1,15 +1,16 @@
 #!/bin/bash
+#########################################################
 #
-# ---------------------------------------------------------------------------- *
-# Gregor Santner <gsantner.net> wrote this file. You can do whatever
-# you want with this stuff. If we meet some day, and you think this stuff is
-# worth it, you can buy me a coke in return. Provided as is without any kind
-# of warranty. No attribution required.                  - Gregor Santner
+#   showSystemDashboard.sh
 #
-# License: Creative Commons Zero (CC0 1.0)
-#  http://creativecommons.org/publicdomain/zero/1.0/
-# ----------------------------------------------------------------------------
+#   Maintained by Gregor Santner, 2016-
+#   https://gsantner.net/
 #
+#   License: Apache 2.0
+#  https://github.com/gsantner/opoc/#licensing
+#  https://www.apache.org/licenses/LICENSE-2.0
+#
+#########################################################
 
 
 #########################################################
@@ -140,4 +141,3 @@ NAME="DNSCrypt" && outputStatus
 
 # Finish current line so the cmd input window start again from pos 0
 [ $ELEINROW -ne 0 ] && echo ""
-
