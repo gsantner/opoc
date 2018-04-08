@@ -23,6 +23,7 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 // Text = the whole document ;; line = one task line, \n separated
+@SuppressWarnings({"WeakerAccess", "UnusedReturnValue", "SameParameterValue"})
 public class SttCommander {
     //
     // Statics
@@ -53,7 +54,7 @@ public class SttCommander {
     public static final Pattern PATTERN_PRIORITY_E = Pattern.compile("(?:^|\\n)\\(([Ee])\\)\\s");
     public static final Pattern PATTERN_PRIORITY_F = Pattern.compile("(?:^|\\n)\\(([Ff])\\)\\s");
     public static final Pattern PATTERN_COMPLETION_DATE = Pattern.compile("(?:^|\\n)(?:[Xx] )(" + PT_DATE + ")");
-    public static final Pattern PATTERN_CREATION_DATE = Pattern.compile("(?:^|\\n)(?:[Xx] " + PT_DATE + " )?(" + PT_DATE + ")");
+    public static final Pattern PATTERN_CREATION_DATE = Pattern.compile("(?:^|\\n)(?:\\([A-Za-z]\\)\\s)?(?:[Xx] " + PT_DATE + " )?(" + PT_DATE + ")");
 
     // Tasks from inside full text
     public static class SttTasksInTextRange {
