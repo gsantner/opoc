@@ -11,6 +11,7 @@
 package net.gsantner.opoc.ui;
 
 import android.content.Context;
+import android.support.annotation.NonNull;
 import android.support.v4.content.ContextCompat;
 import android.support.v7.widget.RecyclerView;
 import android.view.LayoutInflater;
@@ -69,22 +70,23 @@ public class FilesystemDialogAdapter extends RecyclerView.Adapter<FilesystemDial
         loadFolder(options.rootFolder);
     }
 
+    @NonNull
     @Override
-    public UiFilesystemDialogViewHolder onCreateViewHolder(ViewGroup parent, int viewType) {
+    public UiFilesystemDialogViewHolder onCreateViewHolder(@NonNull ViewGroup parent, int viewType) {
         View v = LayoutInflater.from(parent.getContext()).inflate(R.layout.ui__filesystem_item, parent, false);
         _wasInit = true;
         return new UiFilesystemDialogViewHolder(v);
     }
 
     @Override
-    public void onBindViewHolder(UiFilesystemDialogViewHolder holder, int position) {
+    public void onBindViewHolder(@NonNull UiFilesystemDialogViewHolder holder, int position) {
         final File file = _adapterDataFiltered.get(position);
         final File fileParent = file.getParentFile() == null ? new File("/") : file.getParentFile();
 
-        holder.title.setText(file.getName());
+        holder.title.setText(fileParent.equals(_currentFolder) ? file.getName() : "..");
         holder.title.setTextColor(ContextCompat.getColor(_context, _dopt.primaryTextColor));
 
-        holder.description.setText(fileParent.getAbsolutePath());
+        holder.description.setText(fileParent.equals(_currentFolder) ? fileParent.getAbsolutePath() : file.getAbsolutePath());
         holder.description.setTextColor(ContextCompat.getColor(_context, _dopt.secondaryTextColor));
 
         holder.image.setImageResource(file.isDirectory() ? _dopt.folderImage : _dopt.fileImage);
@@ -141,24 +143,18 @@ public class FilesystemDialogAdapter extends RecyclerView.Adapter<FilesystemDial
                 TagContainer data = (TagContainer) view.getTag();
                 if (areItemsSelected()) {
                     // There are 1 or more items selected yet
-                    if (!toggleSelection(data) && data.file.isDirectory()) {
+                    if (data != null && !toggleSelection(data) && data.file.isDirectory()) {
                         loadFolder(data.file);
                     }
                 } else {
-                    // No pre-selection
-                    if (data.file.isDirectory()) {
-                        loadFolder(data.file);
-                    } else {
-                        _dopt.listener.onFsSelected(_dopt.requestId, data.file);
+                    if (data != null && data.file != null) {
+                        // No pre-selection
+                        if (data.file.isDirectory()) {
+                            loadFolder(data.file);
+                        } else if (data.file.isFile()) {
+                            _dopt.listener.onFsSelected(_dopt.requestId, data.file);
+                        }
                     }
-                }
-                return;
-            }
-            case R.id.ui__filesystem_dialog__dir_up: {
-                _currentSelection.clear();
-                File parent = _currentFolder.getParentFile();
-                if (parent != null && parent.getAbsolutePath().startsWith(_dopt.rootFolder.getAbsolutePath())) {
-                    loadFolder(parent);
                 }
                 return;
             }
@@ -210,6 +206,11 @@ public class FilesystemDialogAdapter extends RecyclerView.Adapter<FilesystemDial
         return ret;
     }
 
+    public boolean canGoUp(File currentFolder) {
+        File parentFolder = _currentFolder.getParentFile();
+        return parentFolder != null && (!_dopt.mustStartWithRootFolder || parentFolder.getAbsolutePath().startsWith(_dopt.rootFolder.getAbsolutePath()));
+    }
+
     @Override
     public boolean onLongClick(View view) {
         switch (view.getId()) {
@@ -236,6 +237,14 @@ public class FilesystemDialogAdapter extends RecyclerView.Adapter<FilesystemDial
 
         Collections.addAll(_adapterData, files);
 
+        if (folder.getAbsolutePath().equals("/storage/emulated")) {
+            _adapterData.add(new File(folder, "0"));
+        }
+
+        if (folder.getAbsolutePath().equals("/")) {
+            _adapterData.add(new File(folder, "storage"));
+        }
+
         Collections.sort(_adapterData, new Comparator<File>() {
             @Override
             public int compare(File o1, File o2) {
@@ -248,6 +257,10 @@ public class FilesystemDialogAdapter extends RecyclerView.Adapter<FilesystemDial
             }
         });
 
+        if (canGoUp(_currentFolder)) {
+            _adapterData.add(0, _currentFolder.equals(new File("/storage/emulated/0")) ? new File("/storage/emulated") : _currentFolder.getParentFile());
+        }
+
         if (_wasInit) {
             _filter.filter(_filter._lastFilter);
             notifyDataSetChanged();
@@ -256,10 +269,10 @@ public class FilesystemDialogAdapter extends RecyclerView.Adapter<FilesystemDial
 
 
     //########################
-    //##
-    //## StringFilter
-    //##
-    //########################
+//##
+//## StringFilter
+//##
+//########################
     private static class StringFilter extends Filter {
         private FilesystemDialogAdapter _adapter;
         private final List<File> _originalList;
@@ -325,5 +338,4 @@ public class FilesystemDialogAdapter extends RecyclerView.Adapter<FilesystemDial
             ButterKnife.bind(this, row);
         }
     }
-
 }

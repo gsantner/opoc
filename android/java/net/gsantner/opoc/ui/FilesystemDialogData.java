@@ -44,6 +44,8 @@ public class FilesystemDialogData {
                 doSelectFile = false,
                 doSelectMultiple = false;
 
+        public boolean mustStartWithRootFolder = true;
+
         // Visibility of elements
         public boolean
                 titleTextEnable = true,
@@ -72,8 +74,6 @@ public class FilesystemDialogData {
         public int selectedItemImage = android.R.drawable.checkbox_on_background;
         @DrawableRes
         public int fileImage = android.R.drawable.ic_menu_edit;
-        @DrawableRes
-        public int upButtonImage = android.R.drawable.arrow_up_float;
         @ColorRes
         public int backgroundColor = android.R.color.background_light;
         @ColorRes
