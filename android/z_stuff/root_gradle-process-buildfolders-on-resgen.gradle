@@ -1,0 +1,33 @@
+
+allprojects {
+
+    tasks.matching { task -> task.name.matches('.*generate.*Resources') }.all {
+        task -> task.doLast { markUntranslatableBuildFields() }
+    }
+}
+
+
+def markUntranslatableBuildFields() {
+    Set<Project> proc_projects = new HashSet<>(subprojects)
+    proc_projects.add(rootProject)
+
+    proc_projects.each { proc_project ->
+        File mergeDir = new File("${proc_project.buildDir}/intermediates/res/merged")
+        if (!mergeDir.exists()) return
+        mergeDir.eachDir { dir ->
+            println("Resources" + dir)
+            dir.eachFileRecurse { file ->
+                if (file.name.endsWith(".xml")) {
+                    println(file)
+                    String content = file.getText('UTF-8')
+                    if (content != null && content.contains('<string name="bc_notr__')) {
+                        println("Replacing app name in " + file)
+                        content = content.replace('<string name="bc_notr__', '<string translatable="false" name="bc_notr__')
+                        file.write(content, 'UTF-8')
+                    }
+
+                }
+            }
+        }
+    }
+}
