@@ -31,7 +31,7 @@ import android.webkit.WebView;
 
 
 @SuppressWarnings({"WeakerAccess", "unused", "SameParameterValue", "SpellCheckingInspection"})
-public class ActivityUtils extends net.gsantner.opoc.util.ContextUtils {
+public class ActivityUtils extends ContextUtils {
     //########################
     //## Members, Constructors
     //########################
