@@ -1,7 +1,7 @@
 #!/bin/bash
 #########################################################
 #
-#   showSystemDashboard.sh
+#   > Show a dashboard for running linux processes
 #
 #   Maintained by Gregor Santner, 2016-
 #   https://gsantner.net/
