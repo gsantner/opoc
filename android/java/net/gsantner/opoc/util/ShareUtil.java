@@ -3,17 +3,24 @@
  *   Maintained by Gregor Santner, 2017-
  *   https://gsantner.net/
  *
- *   License: Apache 2.0
- *  https://github.com/gsantner/opoc/#licensing
- *  https://www.apache.org/licenses/LICENSE-2.0
+ *   License of this file: Apache 2.0 (Commercial upon request)
+ *     https://www.apache.org/licenses/LICENSE-2.0
+ *     https://github.com/gsantner/opoc/#licensing
  *
 #########################################################*/
 package net.gsantner.opoc.util;
 
+import android.annotation.SuppressLint;
 import android.app.Activity;
+import android.content.ActivityNotFoundException;
+import android.content.BroadcastReceiver;
 import android.content.ClipData;
 import android.content.Context;
 import android.content.Intent;
+import android.content.IntentFilter;
+import android.content.pm.PackageManager;
+import android.content.pm.ResolveInfo;
+import android.database.Cursor;
 import android.graphics.Bitmap;
 import android.graphics.Canvas;
 import android.graphics.Paint;
@@ -21,33 +28,50 @@ import android.net.Uri;
 import android.os.Build;
 import android.os.Environment;
 import android.os.Handler;
+import android.os.ParcelFileDescriptor;
 import android.print.PrintAttributes;
 import android.print.PrintDocumentAdapter;
 import android.print.PrintJob;
 import android.print.PrintManager;
+import android.provider.CalendarContract;
+import android.provider.MediaStore;
 import android.support.annotation.DrawableRes;
 import android.support.annotation.Nullable;
 import android.support.annotation.RequiresApi;
+import android.support.annotation.StringRes;
 import android.support.v4.content.FileProvider;
+import android.support.v4.content.LocalBroadcastManager;
 import android.support.v4.content.pm.ShortcutInfoCompat;
 import android.support.v4.content.pm.ShortcutManagerCompat;
 import android.support.v4.graphics.drawable.IconCompat;
+import android.support.v4.provider.DocumentFile;
+import android.support.v4.util.Pair;
+import android.support.v7.app.AlertDialog;
+import android.support.v7.preference.PreferenceManager;
 import android.text.TextUtils;
 import android.util.Log;
 import android.view.View;
 import android.webkit.WebView;
+import android.widget.ImageView;
 
 import java.io.File;
+import java.io.FileDescriptor;
+import java.io.FileInputStream;
+import java.io.FileOutputStream;
 import java.io.IOException;
 import java.text.SimpleDateFormat;
 import java.util.ArrayList;
+import java.util.Date;
 import java.util.List;
 import java.util.Locale;
 import java.util.Random;
 
+import static android.app.Activity.RESULT_OK;
+
 /**
- * A utility class to ease information sharing on Android
- * Also allows to parse/fetch information out of shared information
+ * A utility class to ease information sharing on Android.
+ * Also allows to parse/fetch information out of shared information.
+ * (M)Permissions are not checked, wrap ShareUtils methods if neccessary
  */
 @SuppressWarnings({"UnusedReturnValue", "WeakerAccess", "SameParameterValue", "unused", "deprecation", "ConstantConditions", "ObsoleteSdkInt", "SpellCheckingInspection"})
 public class ShareUtil {
@@ -55,7 +79,13 @@ public class ShareUtil {
     public final static SimpleDateFormat SDF_RFC3339_ISH = new SimpleDateFormat("yyyy-MM-dd'T'HH-mm", Locale.getDefault());
     public final static SimpleDateFormat SDF_SHORT = new SimpleDateFormat("yyMMdd-HHmm", Locale.getDefault());
     public final static String MIME_TEXT_PLAIN = "text/plain";
+    public final static String PREF_KEY__SAF_TREE_URI = "pref_key__saf_tree_uri";
 
+    public final static int REQUEST_CAMERA_PICTURE = 50001;
+    public final static int REQUEST_PICK_PICTURE = 50002;
+    public final static int REQUEST_SAF = 50003;
+
+    protected static String _lastCameraPictureFilepath;
 
     protected Context _context;
     protected String _fileProviderAuthority;
@@ -64,6 +94,10 @@ public class ShareUtil {
     public ShareUtil(Context context) {
         _context = context;
         _chooserTitle = "➥";
+    }
+
+    public void freeContextRef() {
+        _context = null;
     }
 
     public String getFileProviderAuthority() {
@@ -173,13 +207,51 @@ public class ShareUtil {
      * @param file     The file to share
      * @param mimeType The files mime type
      */
-    public void shareStream(File file, String mimeType) {
-        Uri fileUri = FileProvider.getUriForFile(_context, getFileProviderAuthority(), file);
+    public boolean shareStream(File file, String mimeType) {
         Intent intent = new Intent(Intent.ACTION_SEND);
-        intent.putExtra(Intent.EXTRA_STREAM, fileUri);
         intent.putExtra(EXTRA_FILEPATH, file.getAbsolutePath());
         intent.setType(mimeType);
-        showChooser(intent, null);
+
+        try {
+            Uri fileUri = FileProvider.getUriForFile(_context, getFileProviderAuthority(), file);
+            intent.putExtra(Intent.EXTRA_STREAM, fileUri);
+            showChooser(intent, null);
+            return true;
+        } catch (Exception e) { // FileUriExposed(API24) / IllegalArgument
+            return false;
+        }
+    }
+
+    /**
+     * Start calendar application to add new event, with given details prefilled
+     */
+    public boolean createCalendarAppointment(@Nullable String title, @Nullable String description, @Nullable String location, @Nullable Long... startAndEndTime) {
+        Intent intent = new Intent(Intent.ACTION_INSERT).setData(CalendarContract.Events.CONTENT_URI);
+        if (title != null) {
+            intent.putExtra(CalendarContract.Events.TITLE, title);
+        }
+        if (description != null) {
+            description = description.length() > 800 ? description.substring(0, 800) : description;
+            intent.putExtra(CalendarContract.Events.DESCRIPTION, description);
+        }
+        if (location != null) {
+            intent.putExtra(CalendarContract.Events.EVENT_LOCATION, location);
+        }
+        if (startAndEndTime != null) {
+            if (startAndEndTime.length > 0 && startAndEndTime[0] > 0) {
+                intent.putExtra(CalendarContract.EXTRA_EVENT_BEGIN_TIME, startAndEndTime[0]);
+            }
+            if (startAndEndTime.length > 1 && startAndEndTime[1] > 0) {
+                intent.putExtra(CalendarContract.EXTRA_EVENT_END_TIME, startAndEndTime[1]);
+            }
+        }
+
+        try {
+            _context.startActivity(intent);
+            return true;
+        } catch (ActivityNotFoundException e) {
+            return false;
+        }
     }
 
     /**
@@ -187,15 +259,29 @@ public class ShareUtil {
      *
      * @param file The file to share
      */
-    public void viewFileInOtherApp(File file, @Nullable String type) {
-        Uri fileUri = FileProvider.getUriForFile(_context, getFileProviderAuthority(), file);
-        Intent intent = new Intent(Intent.ACTION_VIEW);
-        intent.putExtra(Intent.EXTRA_STREAM, fileUri);
-        intent.setData(fileUri);
-        intent.putExtra(EXTRA_FILEPATH, file.getAbsolutePath());
-        intent.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
-        intent.setDataAndType(fileUri, type);
-        showChooser(intent, null);
+    public boolean viewFileInOtherApp(File file, @Nullable String type) {
+        // On some specific devices the first won't work
+        Uri fileUri = null;
+        try {
+            fileUri = FileProvider.getUriForFile(_context, getFileProviderAuthority(), file);
+        } catch (Exception ignored) {
+            try {
+                fileUri = Uri.fromFile(file);
+            } catch (Exception ignored2) {
+            }
+        }
+
+        if (fileUri != null) {
+            Intent intent = new Intent(Intent.ACTION_VIEW);
+            intent.putExtra(Intent.EXTRA_STREAM, fileUri);
+            intent.setData(fileUri);
+            intent.putExtra(EXTRA_FILEPATH, file.getAbsolutePath());
+            intent.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
+            intent.setDataAndType(fileUri, type);
+            showChooser(intent, null);
+            return true;
+        }
+        return false;
     }
 
     /**
@@ -472,5 +558,517 @@ public class ShareUtil {
             }
         }
         return null;
+    }
+
+    /**
+     * Request a picture from gallery
+     * Result will be available from {@link Activity#onActivityResult(int, int, Intent)}.
+     * It will return the path to the image if locally stored. If retrieved from e.g. a cloud
+     * service, the image will get copied to app-cache folder and it's path returned.
+     */
+    public void requestGalleryPicture() {
+        if (!(_context instanceof Activity)) {
+            throw new RuntimeException("Error: ShareUtil.requestGalleryPicture needs an Activity Context.");
+        }
+        Intent intent = new Intent(Intent.ACTION_PICK, MediaStore.Images.Media.EXTERNAL_CONTENT_URI);
+        ((Activity) _context).startActivityForResult(intent, REQUEST_PICK_PICTURE);
+    }
+
+    /**
+     * Request a picture from camera-like apps
+     * Result ({@link String}) will be available from {@link Activity#onActivityResult(int, int, Intent)}.
+     * It has set resultCode to {@link Activity#RESULT_OK} with same requestCode, if successfully
+     * The requested image savepath has to be stored at caller side (not contained in intent),
+     * it can be retrieved using {@link #extractResultFromActivityResult(int, int, Intent, Activity...)}
+     * returns null if an error happened.
+     *
+     * @param target Path to file to write to, if folder the filename gets app_name + millis + random filename. If null DCIM folder is used.
+     */
+    public String requestCameraPicture(File target) {
+        if (!(_context instanceof Activity)) {
+            throw new RuntimeException("Error: ShareUtil.requestCameraPicture needs an Activity Context.");
+        }
+        String cameraPictureFilepath = null;
+        Intent takePictureIntent = new Intent(MediaStore.ACTION_IMAGE_CAPTURE);
+        if (takePictureIntent.resolveActivity(_context.getPackageManager()) != null) {
+            File photoFile;
+            try {
+                // Create an image file name
+                if (target != null && !target.isDirectory()) {
+                    photoFile = target;
+                } else {
+                    SimpleDateFormat sdf = new SimpleDateFormat("yyyy-MM-dd'T'HH-mm-ss", Locale.getDefault());
+                    File storageDir = target != null ? target : new File(Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DCIM), "Camera");
+                    String imageFileName = ((new ContextUtils(_context).rstr("app_name")).replaceAll("[^a-zA-Z0-9\\.\\-]", "_") + "_").replace("__", "_") + sdf.format(new Date());
+                    photoFile = new File(storageDir, imageFileName + ".jpg");
+                    if (!photoFile.getParentFile().exists() && !photoFile.getParentFile().mkdirs()) {
+                        photoFile = File.createTempFile(imageFileName + "_", ".jpg", storageDir);
+                    }
+                }
+
+                //noinspection StatementWithEmptyBody
+                if (!photoFile.getParentFile().exists() && photoFile.getParentFile().mkdirs()) ;
+
+                // Save a file: path for use with ACTION_VIEW intents
+                cameraPictureFilepath = photoFile.getAbsolutePath();
+            } catch (IOException ex) {
+                return null;
+            }
+
+            // Continue only if the File was successfully created
+            if (photoFile != null) {
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
+                    Uri uri = FileProvider.getUriForFile(_context, getFileProviderAuthority(), photoFile);
+                    takePictureIntent.putExtra(MediaStore.EXTRA_OUTPUT, uri);
+                } else {
+                    takePictureIntent.putExtra(MediaStore.EXTRA_OUTPUT, Uri.fromFile(photoFile));
+                }
+                ((Activity) _context).startActivityForResult(takePictureIntent, REQUEST_CAMERA_PICTURE);
+            }
+        }
+        _lastCameraPictureFilepath = cameraPictureFilepath;
+        return cameraPictureFilepath;
+    }
+
+    /**
+     * Extract result data from {@link Activity#onActivityResult(int, int, Intent)}.
+     * Forward all arguments from activity. Only requestCodes from {@link ShareUtil} get analyzed.
+     * Also may forward results via local broadcast
+     */
+    @SuppressLint("ApplySharedPref")
+    public Object extractResultFromActivityResult(int requestCode, int resultCode, Intent data, Activity... activityOrNull) {
+        Activity activity = greedyGetActivity(activityOrNull);
+        switch (requestCode) {
+            case REQUEST_CAMERA_PICTURE: {
+                String picturePath = (resultCode == RESULT_OK) ? _lastCameraPictureFilepath : null;
+                if (picturePath != null) {
+                    sendLocalBroadcastWithStringExtra(REQUEST_CAMERA_PICTURE + "", EXTRA_FILEPATH, picturePath);
+                }
+                return picturePath;
+            }
+            case REQUEST_PICK_PICTURE: {
+                if (resultCode == RESULT_OK && data != null) {
+                    Uri selectedImage = data.getData();
+                    String[] filePathColumn = {MediaStore.Images.Media.DATA};
+                    String picturePath = null;
+
+                    Cursor cursor = _context.getContentResolver().query(selectedImage, filePathColumn, null, null, null);
+                    if (cursor != null && cursor.moveToFirst()) {
+                        for (String column : filePathColumn) {
+                            int curColIndex = cursor.getColumnIndex(column);
+                            if (curColIndex == -1) {
+                                continue;
+                            }
+                            picturePath = cursor.getString(curColIndex);
+                            if (!TextUtils.isEmpty(picturePath)) {
+                                break;
+                            }
+                        }
+                        cursor.close();
+                    }
+
+                    // Retrieve image from file descriptor / Cloud, e.g.: Google Drive, Picasa
+                    if (picturePath == null && Build.VERSION.SDK_INT >= Build.VERSION_CODES.KITKAT) {
+                        try {
+                            ParcelFileDescriptor parcelFileDescriptor = _context.getContentResolver().openFileDescriptor(selectedImage, "r");
+                            if (parcelFileDescriptor != null) {
+                                FileDescriptor fileDescriptor = parcelFileDescriptor.getFileDescriptor();
+                                FileInputStream input = new FileInputStream(fileDescriptor);
+
+                                // Create temporary file in cache directory
+                                picturePath = File.createTempFile("image", "tmp", _context.getCacheDir()).getAbsolutePath();
+                                FileUtils.writeFile(new File(picturePath), FileUtils.readCloseBinaryStream(input));
+                            }
+                        } catch (IOException ignored) {
+                            // nothing we can do here, null value will be handled below
+                        }
+                    }
+
+                    // Return path to picture on success, else null
+                    if (picturePath != null) {
+                        sendLocalBroadcastWithStringExtra(REQUEST_CAMERA_PICTURE + "", EXTRA_FILEPATH, picturePath);
+                    }
+                    return picturePath;
+                }
+                break;
+            }
+
+            case REQUEST_SAF: {
+                if (resultCode == RESULT_OK && data != null && data.getData() != null) {
+                    Uri treeUri = data.getData();
+                    PreferenceManager.getDefaultSharedPreferences(_context).edit().putString(PREF_KEY__SAF_TREE_URI, treeUri.toString()).commit();
+                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.KITKAT) {
+                        activity.getContentResolver().takePersistableUriPermission(treeUri, Intent.FLAG_GRANT_READ_URI_PERMISSION | Intent.FLAG_GRANT_WRITE_URI_PERMISSION);
+                    }
+                    return treeUri;
+                }
+                break;
+            }
+        }
+        return null;
+    }
+
+    /**
+     * Send a local broadcast (to receive within app), with given action and string-extra+value.
+     * This is a convenience method for quickly sending just one thing.
+     */
+    public void sendLocalBroadcastWithStringExtra(String action, String extra, CharSequence value) {
+        Intent intent = new Intent(action);
+        intent.putExtra(extra, value);
+        LocalBroadcastManager.getInstance(_context).sendBroadcast(intent);
+    }
+
+    /**
+     * Receive broadcast results via a callback method
+     *
+     * @param callback       Function to call with received {@link Intent}
+     * @param autoUnregister wether or not to automatically unregister receiver after first match
+     * @param filterActions  All {@link IntentFilter} actions to filter for
+     * @return The created instance. Has to be unregistered on {@link Activity} lifecycle events.
+     */
+    public BroadcastReceiver receiveResultFromLocalBroadcast(Callback.a2<Intent, BroadcastReceiver> callback, boolean autoUnregister, String... filterActions) {
+        IntentFilter intentFilter = new IntentFilter();
+        for (String filterAction : filterActions) {
+            intentFilter.addAction(filterAction);
+        }
+        final BroadcastReceiver br = new BroadcastReceiver() {
+            @Override
+            public void onReceive(Context context, Intent intent) {
+                if (intent != null) {
+                    if (autoUnregister) {
+                        LocalBroadcastManager.getInstance(_context).unregisterReceiver(this);
+                    }
+                    try {
+                        callback.callback(intent, this);
+                    } catch (Exception ignored) {
+                    }
+                }
+            }
+        };
+        LocalBroadcastManager.getInstance(_context).registerReceiver(br, intentFilter);
+        return br;
+    }
+
+    /**
+     * Request edit of image (by image editor/viewer - for example to crop image)
+     *
+     * @param file File that should be edited
+     */
+    public void requestPictureEdit(File file) {
+        Uri uri = getUriByFileProviderAuthority(file);
+        int flags = Intent.FLAG_GRANT_WRITE_URI_PERMISSION | Intent.FLAG_GRANT_READ_URI_PERMISSION;
+
+        Intent intent = new Intent(Intent.ACTION_EDIT);
+        intent.setDataAndType(uri, "image/*");
+        intent.addFlags(flags);
+        intent.putExtra(MediaStore.EXTRA_OUTPUT, uri);
+        intent.putExtra(EXTRA_FILEPATH, file.getAbsolutePath());
+
+        for (ResolveInfo resolveInfo : _context.getPackageManager().queryIntentActivities(intent, PackageManager.MATCH_DEFAULT_ONLY)) {
+            String packageName = resolveInfo.activityInfo.packageName;
+            _context.grantUriPermission(packageName, uri, flags);
+        }
+        _context.startActivity(Intent.createChooser(intent, null));
+    }
+
+    /**
+     * Get content://media/ Uri for given file, or null if not indexed
+     *
+     * @param file Target file
+     * @param mode 1 for picture, 2 for video, anything else for other
+     * @return
+     */
+    public Uri getMediaUri(File file, int mode) {
+        Uri uri = MediaStore.Files.getContentUri("external");
+        uri = (mode != 0) ? (mode == 1 ? MediaStore.Images.Media.EXTERNAL_CONTENT_URI : MediaStore.Video.Media.EXTERNAL_CONTENT_URI) : uri;
+
+        Cursor cursor = null;
+        try {
+            cursor = _context.getContentResolver().query(uri, new String[]{MediaStore.Images.Media._ID}, MediaStore.Images.Media.DATA + "= ?", new String[]{file.getAbsolutePath()}, null);
+            if (cursor != null && cursor.moveToFirst()) {
+                int mediaid = cursor.getInt(cursor.getColumnIndex(MediaStore.Images.Media._ID));
+                return Uri.withAppendedPath(uri, mediaid + "");
+            }
+        } catch (Exception ignored) {
+        } finally {
+            if (cursor != null) {
+                cursor.close();
+            }
+        }
+        return null;
+    }
+
+    /**
+     * By default Chrome Custom Tabs only uses Chrome Stable to open links
+     * There are also other packages (like Chrome Beta, Chromium, Firefox, ..)
+     * which implement the Chrome Custom Tab interface. This method changes
+     * the customtab intent to use an available compatible browser, if available.
+     */
+    public void enableChromeCustomTabsForOtherBrowsers(Intent customTabIntent) {
+        String[] checkpkgs = new String[]{
+                "com.android.chrome", "com.chrome.beta", "com.chrome.dev", "com.google.android.apps.chrome", "org.chromium.chrome",
+                "org.mozilla.fennec_fdroid", "org.mozilla.firefox", "org.mozilla.firefox_beta", "org.mozilla.fennec_aurora",
+                "org.mozilla.klar", "org.mozilla.focus",
+        };
+
+        // Get all intent handlers for web links
+        PackageManager pm = _context.getPackageManager();
+        Intent urlIntent = new Intent(Intent.ACTION_VIEW, Uri.parse("https://www.example.com"));
+        List<String> browsers = new ArrayList<>();
+        for (ResolveInfo ri : pm.queryIntentActivities(urlIntent, 0)) {
+            Intent i = new Intent("android.support.customtabs.action.CustomTabsService");
+            i.setPackage(ri.activityInfo.packageName);
+            if (pm.resolveService(i, 0) != null) {
+                browsers.add(ri.activityInfo.packageName);
+            }
+        }
+
+        // Check if the user has a "default browser" selected
+        ResolveInfo ri = pm.resolveActivity(urlIntent, 0);
+        String userDefaultBrowser = (ri == null) ? null : ri.activityInfo.packageName;
+
+        // Select which browser to use out of all installed customtab supporting browsers
+        String pkg = null;
+        if (browsers.isEmpty()) {
+            pkg = null;
+        } else if (browsers.size() == 1) {
+            pkg = browsers.get(0);
+        } else if (!TextUtils.isEmpty(userDefaultBrowser) && browsers.contains(userDefaultBrowser)) {
+            pkg = userDefaultBrowser;
+        } else {
+            for (String checkpkg : checkpkgs) {
+                if (browsers.contains(checkpkg)) {
+                    pkg = checkpkg;
+                    break;
+                }
+            }
+            if (pkg == null && !browsers.isEmpty()) {
+                pkg = browsers.get(0);
+            }
+        }
+        if (pkg != null && customTabIntent != null) {
+            customTabIntent.setPackage(pkg);
+        }
+    }
+
+    /***
+     * Request storage access. The user needs to press "Select storage" at the correct storage.
+     * @param activity The activity which will receive the result from startActivityForResult
+     */
+    public void requestStorageAccessFramework(Activity... activity) {
+        Activity a = greedyGetActivity(activity);
+        if (a != null && android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.LOLLIPOP) {
+            Intent intent = new Intent(Intent.ACTION_OPEN_DOCUMENT_TREE);
+            intent.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION
+                    | Intent.FLAG_GRANT_WRITE_URI_PERMISSION
+                    | Intent.FLAG_GRANT_PERSISTABLE_URI_PERMISSION
+                    | Intent.FLAG_GRANT_PREFIX_URI_PERMISSION
+            );
+            a.startActivityForResult(intent, REQUEST_SAF);
+        }
+    }
+
+    /**
+     * Get storage access framework tree uri. The user must have granted access via {@link #requestStorageAccessFramework(Activity...)}
+     *
+     * @return Uri or null if not granted yet
+     */
+    public Uri getStorageAccessFrameworkTreeUri() {
+        String treeStr = PreferenceManager.getDefaultSharedPreferences(_context).getString(PREF_KEY__SAF_TREE_URI, null);
+        if (!TextUtils.isEmpty(treeStr)) {
+            try {
+                return Uri.parse(treeStr);
+            } catch (Exception ignored) {
+            }
+        }
+        return null;
+    }
+
+    /**
+     * Get mounted storage folder root (by tree uri). The user must have granted access via {@link #requestStorageAccessFramework(Activity...)}
+     *
+     * @return File or null if SD not mounted
+     */
+    public File getStorageAccessFolder() {
+        Uri safUri = getStorageAccessFrameworkTreeUri();
+        if (safUri != null) {
+            String safUriStr = safUri.toString();
+            ContextUtils cu = new ContextUtils(_context);
+            for (Pair<File, String> storage : cu.getStorages(false, true)) {
+                @SuppressWarnings("ConstantConditions") String storageFolderName = storage.first.getName();
+                if (safUriStr.contains(storageFolderName)) {
+                    return storage.first;
+                }
+            }
+            cu.freeContextRef();
+        }
+        return null;
+    }
+
+    /**
+     * Check whether or not a file is under a storage access folder (external storage / SD)
+     *
+     * @param file The file object (file/folder)
+     * @return Wether or not the file is under storage access folder
+     */
+    public boolean isUnderStorageAccessFolder(File file) {
+        if (file != null) {
+            ContextUtils cu = new ContextUtils(_context);
+            for (Pair<File, String> storage : cu.getStorages(false, true)) {
+                if (file.getAbsolutePath().startsWith(storage.first.getAbsolutePath())) {
+                    cu.freeContextRef();
+                    return true;
+                }
+            }
+            cu.freeContextRef();
+        }
+        return false;
+    }
+
+    /**
+     * Greedy extract Activity from parameter or convert context if it's a activity
+     */
+    private Activity greedyGetActivity(Activity... activity) {
+        if (activity != null && activity.length != 0 && activity[0] != null) {
+            return activity[0];
+        }
+        if (_context instanceof Activity) {
+            return (Activity) _context;
+        }
+        return null;
+    }
+
+    /**
+     * Check whether or not a file can be written.
+     * Requires storage access framework permission for external storage (SD)
+     *
+     * @param file  The file object (file/folder)
+     * @param isDir Wether or not the given file parameter is a directory
+     * @return Wether or not the file can be written
+     */
+    public boolean canWriteFile(File file, boolean isDir) {
+        if (file == null) {
+            return false;
+        } else if (file.getAbsolutePath().startsWith(Environment.getExternalStorageDirectory().getAbsolutePath())) {
+            boolean s1 = isDir && file.getParentFile().canWrite();
+            return !isDir && file.getParentFile() != null ? file.getParentFile().canWrite() : file.canWrite();
+        } else {
+            DocumentFile dof = getDocumentFile(file, isDir);
+            return dof != null && dof.canWrite();
+        }
+    }
+
+    /**
+     * Get a {@link DocumentFile} object out of a normal java {@link File}.
+     * When used on a external storage (SD), use {@link #requestStorageAccessFramework(Activity...)}
+     * first to get access. Otherwise this will fail.
+     *
+     * @param file  The file/folder to convert
+     * @param isDir Wether or not file is a directory. For non-existing (to be created) files this info is not known hence required.
+     * @return A {@link DocumentFile} object or null if file cannot be converted
+     */
+    public DocumentFile getDocumentFile(File file, boolean isDir) {
+        // On older versions use fromFile
+        if (Build.VERSION.SDK_INT <= Build.VERSION_CODES.KITKAT) {
+            return DocumentFile.fromFile(file);
+        }
+
+        // Get ContextUtils to find storageRootFolder
+        ContextUtils cu = new ContextUtils(_context);
+        File baseFolderFile = cu.getStorageRootFolder(file);
+        cu.freeContextRef();
+
+        String baseFolder = baseFolderFile == null ? null : baseFolderFile.getAbsolutePath();
+        boolean originalDirectory = false;
+        if (baseFolder == null) {
+            return null;
+        }
+
+        String relPath = null;
+        try {
+            String fullPath = file.getCanonicalPath();
+            if (!baseFolder.equals(fullPath)) {
+                relPath = fullPath.substring(baseFolder.length() + 1);
+            } else {
+                originalDirectory = true;
+            }
+        } catch (IOException e) {
+            return null;
+        } catch (Exception ignored) {
+            originalDirectory = true;
+        }
+        Uri treeUri;
+        if ((treeUri = getStorageAccessFrameworkTreeUri()) == null) {
+            return null;
+        }
+        DocumentFile dof = DocumentFile.fromTreeUri(_context, treeUri);
+        if (originalDirectory) {
+            return dof;
+        }
+        String[] parts = relPath.split("\\/");
+        for (int i = 0; i < parts.length; i++) {
+            DocumentFile nextDof = dof.findFile(parts[i]);
+            if (nextDof == null) {
+                nextDof = ((i < parts.length - 1) || isDir) ? dof.createDirectory(parts[i]) : dof.createFile("image", parts[i]);
+            }
+            dof = nextDof;
+        }
+        return dof;
+    }
+
+    public void showMountSdDialog(@StringRes int title, @StringRes int description, @DrawableRes int mountDescriptionGraphic, Activity... activityOrNull) {
+        Activity activity = greedyGetActivity(activityOrNull);
+        if (activity == null) {
+            return;
+        }
+
+        // Image viewer
+        ImageView imv = new ImageView(activity);
+        imv.setImageResource(mountDescriptionGraphic);
+        imv.setAdjustViewBounds(true);
+
+        AlertDialog.Builder dialog = new AlertDialog.Builder(activity);
+        dialog.setView(imv);
+        dialog.setTitle(title);
+        dialog.setMessage(_context.getString(description) + "\n\n");
+        dialog.setNegativeButton(android.R.string.cancel, null);
+        dialog.setPositiveButton(android.R.string.yes, (dialogInterface, i) -> requestStorageAccessFramework(activity));
+        AlertDialog dialogi = dialog.create();
+        dialogi.show();
+    }
+
+    public void writeFile(File file, boolean isDirectory, Callback.a2<Boolean, FileOutputStream> writeFileCallback) {
+        try {
+            FileOutputStream fileOutputStream = null;
+            ParcelFileDescriptor pfd = null;
+            if (file.canWrite()) {
+                if (isDirectory) {
+                    file.mkdirs();
+                } else {
+                    fileOutputStream = new FileOutputStream(file);
+                }
+            } else {
+                DocumentFile dof = getDocumentFile(file, isDirectory);
+                if (dof != null && dof.getUri() != null && dof.canWrite()) {
+                    if (isDirectory) {
+                        // Nothing to do
+                    } else {
+                        pfd = _context.getContentResolver().openFileDescriptor(dof.getUri(), "w");
+                        fileOutputStream = new FileOutputStream(pfd.getFileDescriptor());
+                    }
+                }
+            }
+            if (writeFileCallback != null) {
+                writeFileCallback.callback(fileOutputStream != null || (isDirectory && file.exists()), fileOutputStream);
+            }
+            if (fileOutputStream != null) {
+                fileOutputStream.close();
+            }
+            if (pfd != null) {
+                pfd.close();
+            }
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
     }
 }

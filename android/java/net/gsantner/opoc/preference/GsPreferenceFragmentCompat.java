@@ -1,9 +1,9 @@
 /*#######################################################
  *
- *   Maintained by Gregor Santner, 2017-
+ *   Maintained by Gregor Santner, 2018-
  *   https://gsantner.net/
  *
- *   License: Apache 2.0
+ *   License: Apache 2.0 / Commercial
  *  https://github.com/gsantner/opoc/#licensing
  *  https://www.apache.org/licenses/LICENSE-2.0
  *
@@ -23,7 +23,7 @@
       <item name="preferenceCategoryStyle">@style/AppTheme.PreferenceTheme.CategoryStyle</item>
     </style>
     <style name="AppTheme.PreferenceTheme.CategoryStyle" parent="Preference.Category">
-        <item name="android:layout">@layout/pref_category_text</item>
+        <item name="android:layout">@layout/opoc_pref_category_text</item>
     </style>
 
  * Layout file:
@@ -46,6 +46,7 @@ import android.content.Intent;
 import android.content.SharedPreferences;
 import android.content.res.TypedArray;
 import android.graphics.Color;
+import android.os.Build;
 import android.os.Bundle;
 import android.support.annotation.ColorInt;
 import android.support.annotation.DrawableRes;
@@ -60,6 +61,7 @@ import android.support.v7.preference.PreferenceGroup;
 import android.support.v7.preference.PreferenceScreen;
 import android.text.TextUtils;
 import android.view.View;
+import android.widget.FrameLayout;
 
 import net.gsantner.opoc.util.Callback;
 import net.gsantner.opoc.util.ContextUtils;
@@ -92,7 +94,7 @@ public abstract class GsPreferenceFragmentCompat<AS extends SharedPreferencesPro
     // Virtual
     //
 
-    public Boolean onPreferenceClicked(Preference preference) {
+    public Boolean onPreferenceClicked(Preference preference, String key, int keyResId) {
         return null;
     }
 
@@ -213,6 +215,12 @@ public abstract class GsPreferenceFragmentCompat<AS extends SharedPreferencesPro
     public void onViewCreated(@NonNull final View view, @Nullable Bundle savedInstanceState) {
         super.onViewCreated(view, savedInstanceState);
         updatePreferenceIcons.callback(this);
+
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.LOLLIPOP) {
+            FrameLayout.LayoutParams lp = (FrameLayout.LayoutParams) view.getLayoutParams();
+            lp.rightMargin = lp.leftMargin = (int) _cu.convertDpToPx(16);
+            view.setLayoutParams(lp);
+        }
     }
 
     private synchronized void updatePreferenceChangedListeners(boolean shouldListen) {
@@ -267,8 +275,10 @@ public abstract class GsPreferenceFragmentCompat<AS extends SharedPreferencesPro
     @Override
     @Deprecated
     public boolean onPreferenceTreeClick(Preference preference) {
-        if (isAdded() && preference.hasKey()) {
-            Boolean ret = onPreferenceClicked(preference);
+        if (isAdded()) {
+            String key = preference.hasKey() ? preference.getKey() : "";
+            int keyResId = keyToStringResId(preference);
+            Boolean ret = onPreferenceClicked(preference, key, keyResId);
             if (ret != null) {
                 return ret;
             }
@@ -310,7 +320,22 @@ public abstract class GsPreferenceFragmentCompat<AS extends SharedPreferencesPro
      * @see android.support.v7.preference.PreferenceGroup#findPreference(CharSequence)
      */
     public Preference findPreference(@StringRes int key) {
-        return findPreference(getString(key));
+        return isAdded() ? findPreference(getString(key)) : null;
+    }
+
+    /**
+     * Finds a {@link Preference} based on its key res id.
+     *
+     * @param key The key of the preference to retrieve.
+     * @return The {@link Preference} with the key, or null.
+     * @see android.support.v7.preference.PreferenceGroup#findPreference(CharSequence)
+     */
+    public Preference setPreferenceVisible(@StringRes int key, boolean visible) {
+        Preference pref;
+        if ((pref = findPreference(key)) != null) {
+            pref.setVisible(visible);
+        }
+        return pref;
     }
 
     @Nullable

@@ -3,7 +3,7 @@
  *   Maintained by Gregor Santner, 2017-
  *   https://gsantner.net/
  *
- *   License: Apache 2.0
+ *   License: Apache 2.0 / Commercial
  *  https://github.com/gsantner/opoc/#licensing
  *  https://www.apache.org/licenses/LICENSE-2.0
  *
@@ -14,6 +14,7 @@ import net.gsantner.opoc.format.todotxt.extension.SttTaskWithParserInfo;
 
 import java.text.SimpleDateFormat;
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.Date;
 import java.util.HashMap;
 import java.util.List;
@@ -28,7 +29,7 @@ public class SttCommander {
     //
     // Statics
     //
-    public static final Pattern TODOTXT_FILE_PATTERN = Pattern.compile("(?i)(^todo[-.]?.*)|(.*[-.]todo\\.((txt)|(md))$)");
+    public static final Pattern TODOTXT_FILE_PATTERN = Pattern.compile("(?i)(^todo[-.]?.*)|(.*[-.]todo\\.((txt)|(text))$)");
     public static final SimpleDateFormat DATEF_YYYY_MM_DD = new SimpleDateFormat("yyyy-MM-dd", Locale.ROOT);
     private static final String PT_DATE = "\\d{4}-\\d{2}-\\d{2}";
 
@@ -40,8 +41,8 @@ public class SttCommander {
             " )?" + // End of prefix
             "((a|.)*)" // Take whats left
     );
-    public static final Pattern PATTERN_PROJECTS = Pattern.compile("\\B(?:\\+)(\\w+)");
-    public static final Pattern PATTERN_CONTEXTS = Pattern.compile("\\B(?:\\@)(\\w+)");
+    public static final Pattern PATTERN_PROJECTS = Pattern.compile("\\B(?:\\++)(\\w+)");
+    public static final Pattern PATTERN_CONTEXTS = Pattern.compile("\\B(?:\\@+)(\\w+)");
     public static final Pattern PATTERN_DONE = Pattern.compile("(?m)(^[Xx]) (.*)$");
     public static final Pattern PATTERN_DATE = Pattern.compile("(?:^|\\s|:)(" + PT_DATE + ")(?:$|\\s)");
     public static final Pattern PATTERN_KEY_VALUE_PAIRS__TAG_ONLY = Pattern.compile("(?i)([a-z]+):([a-z0-9_-]+)");
@@ -350,5 +351,66 @@ public class SttCommander {
 
     private static boolean isPatternFindable(String text, Pattern pattern) {
         return pattern.matcher(text).find();
+    }
+
+    public static class SttTaskSimpleComparator implements Comparator<SttTask> {
+        private String _orderBy;
+        private boolean _descending;
+
+        public SttTaskSimpleComparator(String orderBy, Boolean descending) {
+            _orderBy = orderBy;
+            _descending = descending;
+        }
+
+        @Override
+        public int compare(SttTask x, SttTask y) {
+            int difference;
+            switch (_orderBy) {
+                case "priority": {
+                    difference = compare(x.getPriority(), y.getPriority());
+                    break;
+                }
+                case "context": {
+                    difference = compare(x.getContexts(), y.getContexts());
+                    break;
+                }
+                case "project": {
+                    difference = compare(x.getProjects(), y.getProjects());
+                    break;
+                }
+                default: {
+                    return 0;
+                }
+            }
+            if (_descending) {
+                difference = -1 * difference;
+            }
+            return difference;
+        }
+
+        private int compare(Character x, Character y) {
+            return x.compareTo(y);/*
+            if (Character.toLowerCase(y) < Character.toLowerCase(x)) {
+                return 1;
+            }
+            if (Character.toLowerCase(y) == Character.toLowerCase(x)) {
+                return 0;
+            }
+            return -1;*/
+        }
+
+        private int compare(List<String> x, List<String> y) {
+            if (x.isEmpty() & y.isEmpty()) {
+                return 0;
+            }
+            if (x.isEmpty()) {
+                return 1;
+            }
+            if (y.isEmpty()) {
+                return -1;
+            }
+            return x.get(0).compareTo(y.get(0));
+
+        }
     }
 }

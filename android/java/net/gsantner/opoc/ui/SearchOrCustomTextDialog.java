@@ -11,6 +11,7 @@
 package net.gsantner.opoc.ui;
 
 import android.app.Activity;
+import android.graphics.Typeface;
 import android.support.annotation.ColorInt;
 import android.support.annotation.NonNull;
 import android.support.annotation.Nullable;
@@ -23,6 +24,7 @@ import android.text.TextWatcher;
 import android.view.KeyEvent;
 import android.view.View;
 import android.view.ViewGroup;
+import android.view.WindowManager;
 import android.widget.ArrayAdapter;
 import android.widget.Filter;
 import android.widget.LinearLayout;
@@ -30,6 +32,7 @@ import android.widget.ListView;
 import android.widget.TextView;
 
 import net.gsantner.opoc.util.Callback;
+import net.gsantner.opoc.util.ContextUtils;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -75,10 +78,10 @@ public class SearchOrCustomTextDialog {
                 TextView textView = (TextView) super.getView(pos, convertView, parent);
                 String text = textView.getText().toString();
 
-                textView.setTextColor(dopt.textColor);
-                if (dopt.highlightData.contains(text)) {
-                    textView.setTextColor(dopt.highlightColor);
-                }
+                boolean hl = dopt.highlightData.contains(text);
+                textView.setTextColor(hl ? dopt.highlightColor : dopt.textColor);
+                textView.setTypeface(null, hl ? Typeface.BOLD : Typeface.NORMAL);
+
                 return textView;
             }
 
@@ -139,7 +142,11 @@ public class SearchOrCustomTextDialog {
         listView.setAdapter(listAdapter);
         linearLayout.setOrientation(LinearLayout.VERTICAL);
         if (dopt.isSearchEnabled) {
-            linearLayout.addView(searchEditText, new LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT));
+            LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT);
+            ContextUtils cu = new net.gsantner.opoc.util.ContextUtils(listView.getContext());
+            int px = (int) (new net.gsantner.opoc.util.ContextUtils(listView.getContext()).convertDpToPx(8));
+            lp.setMargins(px, px / 2, px, px / 2);
+            linearLayout.addView(searchEditText, lp);
         }
         final LinearLayout.LayoutParams layoutParams = new LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, 0);
         layoutParams.weight = 1;
@@ -179,6 +186,9 @@ public class SearchOrCustomTextDialog {
             return false;
         });
 
+        if (dialog.getWindow() != null) {
+            dialog.getWindow().setSoftInputMode(WindowManager.LayoutParams.SOFT_INPUT_ADJUST_RESIZE);
+        }
         dialog.show();
     }
 }

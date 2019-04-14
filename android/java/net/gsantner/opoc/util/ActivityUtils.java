@@ -3,19 +3,23 @@
  *   Maintained by Gregor Santner, 2016-
  *   https://gsantner.net/
  *
- *   License: Apache 2.0
- *  https://github.com/gsantner/opoc/#licensing
- *  https://www.apache.org/licenses/LICENSE-2.0
+ *   License of this file: Apache 2.0 (Commercial upon request)
+ *     https://www.apache.org/licenses/LICENSE-2.0
+ *     https://github.com/gsantner/opoc/#licensing
  *
 #########################################################*/
 package net.gsantner.opoc.util;
 
 import android.app.Activity;
 import android.content.ActivityNotFoundException;
+import android.content.ComponentName;
+import android.content.Context;
 import android.content.DialogInterface;
 import android.content.Intent;
+import android.content.pm.PackageManager;
 import android.net.Uri;
 import android.os.Build;
+import android.support.annotation.ColorInt;
 import android.support.annotation.StringRes;
 import android.support.design.widget.Snackbar;
 import android.support.v4.content.ContextCompat;
@@ -29,6 +33,7 @@ import android.view.View;
 import android.view.WindowManager;
 import android.view.inputmethod.InputMethodManager;
 import android.webkit.WebView;
+import android.widget.ScrollView;
 
 
 @SuppressWarnings({"WeakerAccess", "unused", "SameParameterValue", "SpellCheckingInspection"})
@@ -112,18 +117,18 @@ public class ActivityUtils extends net.gsantner.opoc.util.ContextUtils {
     }
 
     public void showDialogWithHtmlTextView(@StringRes int resTitleId, String text, boolean isHtml, DialogInterface.OnDismissListener dismissedListener) {
+        ScrollView scroll = new ScrollView(_context);
         AppCompatTextView textView = new AppCompatTextView(_context);
-        int padding = (int) TypedValue.applyDimension(TypedValue.COMPLEX_UNIT_DIP, 16,
-                _context.getResources().getDisplayMetrics());
-        textView.setMovementMethod(new LinkMovementMethod());
-        textView.setPadding(padding, 0, padding, 0);
+        int padding = (int) TypedValue.applyDimension(TypedValue.COMPLEX_UNIT_DIP, 16, _context.getResources().getDisplayMetrics());
 
+        scroll.setPadding(padding, 0, padding, 0);
+        scroll.addView(textView);
+        textView.setMovementMethod(new LinkMovementMethod());
         textView.setText(isHtml ? new SpannableString(Html.fromHtml(text)) : text);
+
         AlertDialog.Builder dialog = new AlertDialog.Builder(_context)
-                .setPositiveButton(android.R.string.ok, null)
-                .setOnDismissListener(dismissedListener)
-                .setTitle(resTitleId)
-                .setView(textView);
+                .setPositiveButton(android.R.string.ok, null).setOnDismissListener(dismissedListener)
+                .setTitle(resTitleId).setView(scroll);
         dialog.show();
     }
 
@@ -161,7 +166,7 @@ public class ActivityUtils extends net.gsantner.opoc.util.ContextUtils {
             _activity.startActivity(goToMarket);
         } catch (ActivityNotFoundException e) {
             _activity.startActivity(new Intent(Intent.ACTION_VIEW,
-                    Uri.parse("http://play.google.com/store/apps/" + pkgId)));
+                    Uri.parse("https://play.google.com/store/apps/" + pkgId)));
         }
     }
 
@@ -173,5 +178,35 @@ public class ActivityUtils extends net.gsantner.opoc.util.ContextUtils {
 
             _activity.getWindow().setStatusBarColor(color);
         }
+    }
+
+    public void setLauncherActivityEnabled(Class activityClass, boolean enable) {
+        Context context = _context.getApplicationContext();
+        PackageManager pkg = context.getPackageManager();
+        ComponentName component = new ComponentName(context, activityClass);
+        pkg.setComponentEnabledSetting(component, enable ? PackageManager.COMPONENT_ENABLED_STATE_ENABLED : PackageManager.COMPONENT_ENABLED_STATE_DISABLED
+                , PackageManager.DONT_KILL_APP);
+    }
+
+
+    @ColorInt
+    public Integer getCurrentPrimaryColor() {
+        TypedValue typedValue = new TypedValue();
+        _context.getTheme().resolveAttribute(getResId(ResType.ATTR, "colorPrimary"), typedValue, true);
+        return typedValue.data;
+    }
+
+    @ColorInt
+    public Integer getCurrentPrimaryDarkColor() {
+        TypedValue typedValue = new TypedValue();
+        _context.getTheme().resolveAttribute(getResId(ResType.ATTR, "colorPrimaryDark"), typedValue, true);
+        return typedValue.data;
+    }
+
+    @ColorInt
+    public Integer getCurrentAccentColor() {
+        TypedValue typedValue = new TypedValue();
+        _context.getTheme().resolveAttribute(getResId(ResType.ATTR, "colorAccent"), typedValue, true);
+        return typedValue.data;
     }
 }
