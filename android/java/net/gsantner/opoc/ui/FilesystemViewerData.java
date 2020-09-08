@@ -16,8 +16,6 @@ import android.support.annotation.ColorRes;
 import android.support.annotation.DrawableRes;
 import android.support.annotation.StringRes;
 
-import net.gsantner.markor.R;
-
 import java.io.File;
 import java.io.Serializable;
 import java.util.Comparator;
@@ -26,13 +24,13 @@ import java.util.List;
 @SuppressWarnings({"unused", "WeakerAccess"})
 public class FilesystemViewerData {
     public interface SelectionListener extends Serializable {
-        void onFsViewerSelected(String request, File file);
+        void onFsViewerSelected(final String request, final File file);
 
-        void onFsViewerMultiSelected(final String request, File... files);
+        void onFsViewerMultiSelected(final String request, final File... files);
 
         void onFsViewerNothingSelected(final String request);
 
-        void onFsViewerConfig(final Options opt);
+        void onFsViewerConfig(final Options dopt);
 
         void onFsViewerDoUiUpdate(final FilesystemViewerAdapter adapter);
 
@@ -54,7 +52,8 @@ public class FilesystemViewerData {
 
         public boolean mustStartWithRootFolder = true,
                 folderFirst = true,
-                descModtimeInsteadOfParent = false;
+                descModtimeInsteadOfParent = false,
+                showDotFiles = true;
 
         public int itemSidePadding = 16; // dp
 
@@ -79,6 +78,12 @@ public class FilesystemViewerData {
         public int titleText = android.R.string.untitled;
         @StringRes
         public int searchHint = android.R.string.search_go;
+        @StringRes
+        public int contentDescriptionFolder = 0;
+        @StringRes
+        public int contentDescriptionSelected = 0;
+        @StringRes
+        public int contentDescriptionFile = 0;
         @DrawableRes
         public int homeButtonImage = android.R.drawable.star_big_on;
         @DrawableRes
@@ -92,19 +97,17 @@ public class FilesystemViewerData {
         @ColorRes
         public int backgroundColor = android.R.color.background_light;
         @ColorRes
-        public int primaryColor = R.color.primary;
+        public int primaryColor = 0;
         @ColorRes
-        public int accentColor = R.color.accent;
+        public int accentColor = 0;
         @ColorRes
-        public int primaryTextColor = R.color.primary_text;
+        public int primaryTextColor = 0;
         @ColorRes
-        public int secondaryTextColor = R.color.secondary_text;
+        public int secondaryTextColor = 0;
         @ColorRes
-        public int titleTextColor = primaryTextColor;
+        public int titleTextColor = 0;
 
-        public File[] recentFiles, popularFiles = null;
-
-        public List<File> favouriteFiles = null;
+        public List<File> favouriteFiles, recentFiles, popularFiles = null;
     }
 
     public static class SelectionListenerAdapter implements SelectionListener, Serializable {
@@ -121,7 +124,7 @@ public class FilesystemViewerData {
         }
 
         @Override
-        public void onFsViewerConfig(Options opt) {
+        public void onFsViewerConfig(Options dopt) {
 
         }
 

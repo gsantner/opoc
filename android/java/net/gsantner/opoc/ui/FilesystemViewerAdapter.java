@@ -11,6 +11,7 @@
 package net.gsantner.opoc.ui;
 
 import android.content.Context;
+import android.graphics.Color;
 import android.os.Bundle;
 import android.os.Handler;
 import android.support.annotation.NonNull;
@@ -31,6 +32,7 @@ import android.widget.TextView;
 import android.widget.Toast;
 
 import net.gsantner.markor.R;
+import net.gsantner.opoc.util.ContextUtils;
 
 import java.io.File;
 import java.io.FilenameFilter;
@@ -47,7 +49,7 @@ import butterknife.BindView;
 import butterknife.ButterKnife;
 
 @SuppressWarnings({"WeakerAccess", "unused"})
-public class FilesystemViewerAdapter extends RecyclerView.Adapter<FilesystemViewerAdapter.ilesystemViewerViewHolder> implements Filterable, View.OnClickListener, View.OnLongClickListener, Comparator<File>, FilenameFilter {
+public class FilesystemViewerAdapter extends RecyclerView.Adapter<FilesystemViewerAdapter.FilesystemViewerViewHolder> implements Filterable, View.OnClickListener, View.OnLongClickListener, Comparator<File>, FilenameFilter {
     //########################
     //## Static
     //########################
@@ -90,14 +92,31 @@ public class FilesystemViewerAdapter extends RecyclerView.Adapter<FilesystemView
         _context = context.getApplicationContext();
         loadFolder(options.rootFolder);
         _recyclerView = recyclerView;
+
+        ContextUtils cu = new ContextUtils(context);
+        if (_dopt.primaryColor == 0) {
+            _dopt.primaryColor = cu.getResId(ContextUtils.ResType.COLOR, "primary");
+        }
+        if (_dopt.accentColor == 0) {
+            _dopt.accentColor = cu.getResId(ContextUtils.ResType.COLOR, "accent");
+        }
+        if (_dopt.primaryTextColor == 0) {
+            _dopt.primaryTextColor = cu.getResId(ContextUtils.ResType.COLOR, "primary_text");
+        }
+        if (_dopt.secondaryTextColor == 0) {
+            _dopt.secondaryTextColor = cu.getResId(ContextUtils.ResType.COLOR, "secondary_text");
+        }
+        if (_dopt.titleTextColor == 0) {
+            _dopt.titleTextColor = _dopt.primaryTextColor;
+        }
     }
 
     @NonNull
     @Override
-    public ilesystemViewerViewHolder onCreateViewHolder(@NonNull ViewGroup parent, int viewType) {
+    public FilesystemViewerViewHolder onCreateViewHolder(@NonNull ViewGroup parent, int viewType) {
         View v = LayoutInflater.from(parent.getContext()).inflate(R.layout.opoc_filesystem_item, parent, false);
         _wasInit = true;
-        return new ilesystemViewerViewHolder(v);
+        return new FilesystemViewerViewHolder(v);
     }
 
     public boolean isCurrentFolderEmpty() {
@@ -109,42 +128,61 @@ public class FilesystemViewerAdapter extends RecyclerView.Adapter<FilesystemView
     }
 
     @Override
-    public void onBindViewHolder(@NonNull ilesystemViewerViewHolder holder, int position) {
+    @SuppressWarnings("ConstantConditions")
+    public void onBindViewHolder(@NonNull FilesystemViewerViewHolder holder, int position) {
         File file_pre = _adapterDataFiltered.get(position);
-        File file_pre_Parent = file_pre.getParentFile() == null ? new File("/") : file_pre.getParentFile();
-        String filename = file_pre.getName();
+        if (file_pre == null) {
+            holder.title.setText("????");
+            return;
+        }
+        new ContextUtils(_context).setLocale(Locale.getDefault()).freeContextRef();
+        final File file_pre_Parent = file_pre.getParentFile() == null ? new File("/") : file_pre.getParentFile();
+        final String filename = file_pre.getName();
         if (_virtualMapping.keySet().contains(file_pre)) {
             file_pre = _virtualMapping.get(file_pre);
         }
         final File file = file_pre;
         final File fileParent = file.getParentFile() == null ? new File("/") : file.getParentFile();
+        final File descriptionFile = file.equals(_currentFolder.getParentFile()) ? file : fileParent;
+        final boolean isGoUp = file.equals(_currentFolder.getParentFile());
+        final boolean isSelected = _currentSelection.contains(file);
+        final boolean isFavourite = _dopt.favouriteFiles != null && _dopt.favouriteFiles.contains(file);
+        final boolean isPopular = _dopt.popularFiles != null && _dopt.popularFiles.contains(file);
+        final int descriptionRes = isSelected ? _dopt.contentDescriptionSelected : (file.isDirectory() ? _dopt.contentDescriptionFolder : _dopt.contentDescriptionFile);
+        String titleText = filename;
+        if (isCurrentFolderVirtual() && "index.html".equals(filename)) {
+            titleText += " [" + fileParent.getName() + "]";
+        }
 
-        boolean isGoUp = file.equals(_currentFolder.getParentFile());
-        holder.title.setText(isGoUp ? ".." : filename, TextView.BufferType.SPANNABLE);
+        holder.title.setText(isGoUp ? ".." : titleText, TextView.BufferType.SPANNABLE);
         holder.title.setTextColor(ContextCompat.getColor(_context, _dopt.primaryTextColor));
         if (!isFileWriteable(file, isGoUp) && holder.title.length() > 0) {
-            ((Spannable) holder.title.getText()).setSpan(STRIKE_THROUGH_SPAN, 0, holder.title.length(), Spanned.SPAN_EXCLUSIVE_EXCLUSIVE);
+            try {
+                ((Spannable) holder.title.getText()).setSpan(STRIKE_THROUGH_SPAN, 0, holder.title.length(), Spanned.SPAN_EXCLUSIVE_EXCLUSIVE);
+            } catch (Exception ignored) {
+            }
         }
 
-        File descriptionFile = fileParent.equals(_currentFolder) ? fileParent : file;
-        holder.description.setText(!_dopt.descModtimeInsteadOfParent || holder.title.getText().toString().equals("..") ? descriptionFile.getAbsolutePath() : DateUtils.formatDateTime(_context, descriptionFile.lastModified(), (DateUtils.FORMAT_SHOW_TIME | DateUtils.FORMAT_SHOW_DATE | DateUtils.FORMAT_SHOW_YEAR | DateUtils.FORMAT_NUMERIC_DATE)));
+        //String tmp = descriptionFile.getAbsolutePath().startsWith("/storage/emulated/0/") && getCurrentFolder().getAbsolutePath().startsWith("/storage/emulated/0/") ? "/storage/emulated/0/" : "";
+        holder.description.setText(!_dopt.descModtimeInsteadOfParent || holder.title.getText().toString().equals("..") ? descriptionFile.getAbsolutePath() : DateUtils.formatDateTime(_context, file.lastModified(), (DateUtils.FORMAT_SHOW_TIME | DateUtils.FORMAT_SHOW_DATE | DateUtils.FORMAT_SHOW_YEAR | DateUtils.FORMAT_NUMERIC_DATE)));
         holder.description.setTextColor(ContextCompat.getColor(_context, _dopt.secondaryTextColor));
 
-        holder.image.setImageResource(file.isDirectory() ? _dopt.folderImage : _dopt.fileImage);
-        if (_currentSelection.contains(file)) {
-            holder.image.setImageResource(_dopt.selectedItemImage);
-        }
+        holder.image.setImageResource(isSelected ? _dopt.selectedItemImage : (!file.isFile() ? _dopt.folderImage : _dopt.fileImage));
         holder.image.setColorFilter(ContextCompat.getColor(_context,
-                _currentSelection.contains(file) ? _dopt.accentColor : _dopt.secondaryTextColor),
+                isSelected ? _dopt.accentColor : _dopt.secondaryTextColor),
                 android.graphics.PorterDuff.Mode.SRC_ATOP);
+        if (!isSelected && isFavourite) {
+            holder.image.setColorFilter(Color.parseColor("#E3B51B"));
+        }
 
         if (_dopt.itemSidePadding > 0) {
             int dp = (int) (_dopt.itemSidePadding * _context.getResources().getDisplayMetrics().density);
             holder.itemRoot.setPadding(dp, holder.itemRoot.getPaddingTop(), dp, holder.itemRoot.getPaddingBottom());
         }
 
+        holder.itemRoot.setContentDescription((descriptionRes != 0 ? (_context.getString(descriptionRes) + " ") : "") + holder.title.getText().toString() + " " + holder.description.getText().toString());
         //holder.itemRoot.setBackgroundColor(ContextCompat.getColor(_context,
-        //        _currentSelection.contains(file) ? _dopt.primaryColor : _dopt.backgroundColor));
+        //        isSelected ? _dopt.primaryColor : _dopt.backgroundColor));
         holder.image.setOnLongClickListener(view -> {
             Toast.makeText(_context, file.getAbsolutePath(), Toast.LENGTH_SHORT).show();
             return true;
@@ -213,6 +251,18 @@ public class FilesystemViewerAdapter extends RecyclerView.Adapter<FilesystemView
             _dopt.listener.onFsViewerConfig(_dopt);
             reloadCurrentFolder();
         }
+    }
+
+    public boolean isCurrentFolderVirtual() {
+        return _currentFolder != null && (
+                _currentFolder.equals(VIRTUAL_STORAGE_APP_DATA_PRIVATE)
+                        || _currentFolder.equals(VIRTUAL_STORAGE_FAVOURITE)
+                        || _currentFolder.equals(VIRTUAL_STORAGE_POPULAR)
+                        || _currentFolder.equals(VIRTUAL_STORAGE_RECENTS)
+                        || _currentFolder.equals(new File("/storage"))
+                        || _currentFolder.equals(new File("/storage/self"))
+                        || _currentFolder.equals(new File("/storage/emulated"))
+        );
     }
 
     public class TagContainer {
@@ -319,27 +369,37 @@ public class FilesystemViewerAdapter extends RecyclerView.Adapter<FilesystemView
         return _currentSelection;
     }
 
+    public boolean isFilesOnlySelected() {
+        for (File f : _currentSelection) {
+            if (f.isDirectory()) {
+                return false;
+            }
+        }
+        return true;
+    }
+
     public boolean toggleSelection(TagContainer data) {
         boolean clickHandled = false;
-
-        if (data.file.isDirectory() && getCurrentFolder().getParentFile().equals(data.file)) {
-            // goUp
-            clickHandled = true;
-        } else if (_currentSelection.contains(data.file)) {
-            // Single selection
-            _currentSelection.remove(data.file);
-            clickHandled = true;
-        } else if (_dopt.doSelectMultiple) {
-            // Multi selection
-            if (_dopt.doSelectFile && !data.file.isDirectory()) {
-                // Multi selection - file
-                _currentSelection.add(data.file);
+        if (data != null && data.file != null && getCurrentFolder() != null) {
+            if (data.file.isDirectory() && getCurrentFolder().getParentFile() != null && getCurrentFolder().getParentFile().equals(data.file)) {
+                // goUp
                 clickHandled = true;
-            }
-            if (_dopt.doSelectFolder && data.file.isDirectory()) {
-                // Multi selection - folder
-                _currentSelection.add(data.file);
+            } else if (_currentSelection.contains(data.file)) {
+                // Single selection
+                _currentSelection.remove(data.file);
                 clickHandled = true;
+            } else if (_dopt.doSelectMultiple) {
+                // Multi selection
+                if (_dopt.doSelectFile && !data.file.isDirectory()) {
+                    // Multi selection - file
+                    _currentSelection.add(data.file);
+                    clickHandled = true;
+                }
+                if (_dopt.doSelectFolder && data.file.isDirectory()) {
+                    // Multi selection - folder
+                    _currentSelection.add(data.file);
+                    clickHandled = true;
+                }
             }
         }
 
@@ -351,6 +411,7 @@ public class FilesystemViewerAdapter extends RecyclerView.Adapter<FilesystemView
     public boolean goUp() {
         if (canGoUp()) {
             if (_currentFolder != null && _currentFolder.getAbsolutePath() != null && _currentFolder.getParentFile() != null && !_currentFolder.getParentFile().getAbsolutePath().equals(_currentFolder.getAbsolutePath())) {
+                unselectAll();
                 loadFolder(_currentFolder.getParentFile());
                 return true;
             }
@@ -364,7 +425,7 @@ public class FilesystemViewerAdapter extends RecyclerView.Adapter<FilesystemView
     }
 
     public boolean canGoUp(File currentFolder) {
-        File parentFolder = _currentFolder.getParentFile();
+        File parentFolder = _currentFolder != null ? _currentFolder.getParentFile() : null;
         return parentFolder != null && (!_dopt.mustStartWithRootFolder || parentFolder.getAbsolutePath().startsWith(_dopt.rootFolder.getAbsolutePath()));
     }
 
@@ -385,6 +446,7 @@ public class FilesystemViewerAdapter extends RecyclerView.Adapter<FilesystemView
 
     public void loadFolder(final File folder) {
         final Handler handler = new Handler();
+        _currentSelection.clear();
 
         new Thread() {
             @Override
@@ -399,9 +461,9 @@ public class FilesystemViewerAdapter extends RecyclerView.Adapter<FilesystemView
                     if (_currentFolder.isDirectory()) {
                         files = _currentFolder.listFiles(FilesystemViewerAdapter.this);
                     } else if (_currentFolder.equals(VIRTUAL_STORAGE_RECENTS)) {
-                        files = _dopt.recentFiles;
+                        files = _dopt.recentFiles.toArray(new File[0]);
                     } else if (_currentFolder.equals(VIRTUAL_STORAGE_POPULAR)) {
-                        files = _dopt.popularFiles;
+                        files = _dopt.popularFiles.toArray(new File[0]);
                     } else if (_currentFolder.equals(VIRTUAL_STORAGE_FAVOURITE)) {
                         files = (_dopt.favouriteFiles == null ? null : _dopt.favouriteFiles.toArray(new File[0]));
                     }
@@ -468,7 +530,10 @@ public class FilesystemViewerAdapter extends RecyclerView.Adapter<FilesystemView
                         }
                     }
 
-                    Collections.sort(_adapterData, FilesystemViewerAdapter.this);
+                    try {
+                        Collections.sort(_adapterData, FilesystemViewerAdapter.this);
+                    } catch (IllegalArgumentException ignored) {
+                    }
 
                     if (canGoUp(_currentFolder)) {
                         _adapterData.add(0, _currentFolder.equals(new File("/storage/emulated/0")) ? new File("/storage/emulated") : _currentFolder.getParentFile());
@@ -499,6 +564,9 @@ public class FilesystemViewerAdapter extends RecyclerView.Adapter<FilesystemView
         File f = new File(dir, filename);
         Boolean yes = _dopt.fileOverallFilter == null ? null : _dopt.fileOverallFilter.apply(f);
         yes = yes == null || yes;
+        if (!_dopt.showDotFiles && filename.startsWith(".")) {
+            return false;
+        }
         return f.isDirectory() || (!f.isDirectory() && _dopt.doSelectFile && yes);
     }
 
@@ -589,7 +657,7 @@ public class FilesystemViewerAdapter extends RecyclerView.Adapter<FilesystemView
     }
 
     @SuppressWarnings({"WeakerAccess", "unused"})
-    static class ilesystemViewerViewHolder extends RecyclerView.ViewHolder {
+    static class FilesystemViewerViewHolder extends RecyclerView.ViewHolder {
         //########################
         //## UI Binding
         //########################
@@ -605,7 +673,7 @@ public class FilesystemViewerAdapter extends RecyclerView.Adapter<FilesystemView
         //########################
         //## Methods
         //########################
-        ilesystemViewerViewHolder(View row) {
+        FilesystemViewerViewHolder(View row) {
             super(row);
             ButterKnife.bind(this, row);
         }

@@ -11,21 +11,30 @@
 package net.gsantner.opoc.util;
 
 import java.text.DecimalFormat;
+import java.text.DecimalFormatSymbols;
+import java.util.Locale;
 
 /**
  * A timer for quick time measurement. Nano - in both, time and functions
  */
 public class NanoProfiler {
-    private final DecimalFormat formatter = new DecimalFormat("000000000.0000000");
+    private final DecimalFormat formatter = new DecimalFormat("000000000.0000000", DecimalFormatSymbols.getInstance(Locale.ENGLISH));
     private long _profilingGroupValue = 0;
     private int _groupCount = 0;
     private boolean _profilerEnabled = true;
     private long _profilingValue = -1;
     private String _text;
+    private static String _debugText = "";
 
     public NanoProfiler setEnabled(boolean enabled) {
         _profilerEnabled = enabled;
         return this;
+    }
+
+    public String resetDebugText() {
+        String text = _debugText;
+        _debugText = "";
+        return text;
     }
 
     public void start(boolean increaseGroupCounter, String... optionalText) {
@@ -47,7 +56,9 @@ public class NanoProfiler {
     public void printProfilingGroup() {
         if (_profilerEnabled) {
             String text = formatter.format(_profilingGroupValue / 1000f).replaceAll("\\G0", " ") + " [ms] for Group " + _groupCount;
-            System.out.println("NanoProfiler::: " + _groupCount + text);
+            text = "NanoProfiler::: " + _groupCount + text;
+            _debugText += text + "\n";
+            System.out.println(text);
         }
     }
 
@@ -57,7 +68,9 @@ public class NanoProfiler {
             _profilingValue = now - _profilingValue;
             _profilingGroupValue += _profilingValue / 1000f;
             String text = formatter.format(_profilingValue / 1000f).replaceAll("\\G0", " ") + " [µs] for " + _text;
-            System.out.println("NanoProfiler::: " + _groupCount + text);
+            text = "NanoProfiler::: " + _groupCount + text;
+            _debugText += text + "\n";
+            System.out.println(text);
         }
     }
 }

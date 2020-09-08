@@ -46,6 +46,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Calendar;
 import java.util.Date;
+import java.util.GregorianCalendar;
 import java.util.List;
 
 
@@ -58,6 +59,8 @@ public class SharedPreferencesPropertyBackend implements PropertyBackend<String,
     protected static final String ARRAY_SEPARATOR = "%%%";
     protected static final String ARRAY_SEPARATOR_SUBSTITUTE = "§§§";
     public static final String SHARED_PREF_APP = "app";
+    private static String _debugLog = "";
+
 
     //
     // Members, Constructors
@@ -532,7 +535,7 @@ public class SharedPreferencesPropertyBackend implements PropertyBackend<String,
      * A method to determine if current hour is between begin and end.
      * This is especially useful for time-based light/dark mode
      */
-    public boolean isCurrentHourOfDayBetween(int begin, int end) {
+    public static boolean isCurrentHourOfDayBetween(int begin, int end) {
         begin = (begin >= 23 || begin < 0) ? 0 : begin;
         end = (end >= 23 || end < 0) ? 0 : end;
         int h = Calendar.getInstance().get(Calendar.HOUR_OF_DAY);
@@ -543,7 +546,9 @@ public class SharedPreferencesPropertyBackend implements PropertyBackend<String,
      * Substract current datetime by given amount of days
      */
     public Date getDateOfDaysAgo(int days) {
-        return new Date(System.currentTimeMillis() - days * 1000 * 60 * 60 * 24);
+        Calendar cal = new GregorianCalendar();
+        cal.add(Calendar.DATE, -days);
+        return cal.getTime();
     }
 
     /**
@@ -570,5 +575,17 @@ public class SharedPreferencesPropertyBackend implements PropertyBackend<String,
             setLong(key, new Date(System.currentTimeMillis()).getTime());
         }
         return trigger;
+    }
+
+    public static void clearDebugLog() {
+        _debugLog = "";
+    }
+
+    public static String getDebugLog() {
+        return _debugLog;
+    }
+
+    public static synchronized void appendDebugLog(String text) {
+        _debugLog += "[" + new Date().toString() + "] " + text + "\n";
     }
 }

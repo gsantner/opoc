@@ -9,7 +9,7 @@
  *
 #########################################################*/
 /*
- * Revision 001 of FilesystemViewerFactory
+ * Revision 001 of FilesystemViewerCreator
  * A simple filesystem dialog with file, folder and multiple selection
  * most bits (color, text, images) can be controller using FilesystemViewerData.
  * The data container contains a listener callback for results.
@@ -31,6 +31,7 @@ import android.support.v7.widget.RecyclerView;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
+import android.view.Window;
 import android.view.WindowManager;
 import android.view.inputmethod.InputMethodManager;
 import android.widget.EditText;
@@ -52,7 +53,7 @@ public class FilesystemViewerDialog extends DialogFragment
     //########################
     //## Static
     //########################
-    public static final String FRAGMENT_TAG = "FilesystemViewerFactory";
+    public static final String FRAGMENT_TAG = "FilesystemViewerCreator";
 
     public static FilesystemViewerDialog newInstance(FilesystemViewerData.Options options) {
         FilesystemViewerDialog f = new FilesystemViewerDialog();
@@ -236,9 +237,9 @@ public class FilesystemViewerDialog extends DialogFragment
     }
 
     @Override
-    public void onFsViewerConfig(FilesystemViewerData.Options opt) {
+    public void onFsViewerConfig(FilesystemViewerData.Options dopt) {
         if (_callback != null) {
-            _callback.onFsViewerConfig(opt);
+            _callback.onFsViewerConfig(dopt);
         }
     }
 
@@ -253,6 +254,15 @@ public class FilesystemViewerDialog extends DialogFragment
     public void onFsViewerItemLongPressed(File file, boolean doSelectMultiple) {
         if (_callback != null) {
             _callback.onFsViewerItemLongPressed(file, doSelectMultiple);
+        }
+    }
+
+    @Override
+    public void onStart() {
+        super.onStart();
+        Window w;
+        if (getDialog() != null && (w = getDialog().getWindow()) != null) {
+            w.setLayout(WindowManager.LayoutParams.MATCH_PARENT, WindowManager.LayoutParams.MATCH_PARENT);
         }
     }
 }

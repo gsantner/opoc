@@ -10,12 +10,18 @@
 #########################################################*/
 package net.gsantner.opoc.format.todotxt;
 
+import net.gsantner.markor.util.AppSettings;
+import net.gsantner.opoc.format.todotxt.extension.SttTaskParserInfoExtension;
 import net.gsantner.opoc.format.todotxt.extension.SttTaskWithParserInfo;
 
 import java.text.SimpleDateFormat;
 import java.util.ArrayList;
+import java.util.Calendar;
+import java.util.Collection;
+import java.util.Collections;
 import java.util.Comparator;
 import java.util.Date;
+import java.util.GregorianCalendar;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
@@ -31,7 +37,8 @@ public class SttCommander {
     //
     public static final Pattern TODOTXT_FILE_PATTERN = Pattern.compile("(?i)(^todo[-.]?.*)|(.*[-.]todo\\.((txt)|(text))$)");
     public static final SimpleDateFormat DATEF_YYYY_MM_DD = new SimpleDateFormat("yyyy-MM-dd", Locale.ROOT);
-    private static final String PT_DATE = "\\d{4}-\\d{2}-\\d{2}";
+    public static final int DATEF_YYYY_MM_DD_LEN = "yyyy-MM-dd".length();
+    public static final String PT_DATE = "\\d{4}-\\d{2}-\\d{2}";
 
     public static final Pattern PATTERN_DESCRIPTION = Pattern.compile("(?:^|\\n)" +
             "(?:" +
@@ -41,12 +48,13 @@ public class SttCommander {
             " )?" + // End of prefix
             "((a|.)*)" // Take whats left
     );
-    public static final Pattern PATTERN_PROJECTS = Pattern.compile("\\B(?:\\++)(\\w+)");
-    public static final Pattern PATTERN_CONTEXTS = Pattern.compile("\\B(?:\\@+)(\\w+)");
+    public static final Pattern PATTERN_PROJECTS = Pattern.compile("\\B(?:\\++)(\\S+)");
+    public static final Pattern PATTERN_CONTEXTS = Pattern.compile("\\B(?:\\@+)(\\S+)");
     public static final Pattern PATTERN_DONE = Pattern.compile("(?m)(^[Xx]) (.*)$");
     public static final Pattern PATTERN_DATE = Pattern.compile("(?:^|\\s|:)(" + PT_DATE + ")(?:$|\\s)");
     public static final Pattern PATTERN_KEY_VALUE_PAIRS__TAG_ONLY = Pattern.compile("(?i)([a-z]+):([a-z0-9_-]+)");
     public static final Pattern PATTERN_KEY_VALUE_PAIRS = Pattern.compile("(?i)((?:[a-z]+):(?:[a-z0-9_-]+))");
+    public static final Pattern PATTERN_DUE_DATE = Pattern.compile("(?:due:)(" + PT_DATE + ")");
     public static final Pattern PATTERN_PRIORITY_ANY = Pattern.compile("(?:^|\\n)\\(([A-Za-z])\\)\\s");
     public static final Pattern PATTERN_PRIORITY_A = Pattern.compile("(?:^|\\n)\\(([Aa])\\)\\s");
     public static final Pattern PATTERN_PRIORITY_B = Pattern.compile("(?:^|\\n)\\(([Bb])\\)\\s");
@@ -119,8 +127,7 @@ public class SttCommander {
         task.setCreationDate(parseCreationDate(line));
         task.setPriority(parsePriority(line));
         task.setKeyValuePairs(parseKeyValuePairs(line));
-
-        System.out.print("");
+        task.setDueDate(parseDueDate(line));
         return task;
     }
 
@@ -145,6 +152,10 @@ public class SttCommander {
         return parseOneValueOrDefault(line, PATTERN_CREATION_DATE, "");
     }
 
+    private String parseDueDate(String line) {
+        return parseOneValueOrDefault(line, PATTERN_DUE_DATE, "");
+    }
+
     private char parsePriority(String line) {
         String ret = parseOneValueOrDefault(line, PATTERN_PRIORITY_ANY, "");
         if (ret.length() == 1) {
@@ -155,7 +166,11 @@ public class SttCommander {
     }
 
     private String parseDescription(String line) {
-        return parseOneValueOrDefault(line, PATTERN_DESCRIPTION, "");
+        String d = parseOneValueOrDefault(line, PATTERN_DESCRIPTION, "");
+        if (parseCreationDate(line).isEmpty() && d.startsWith(" " + parseCompletionDate(line) + " ")) {
+            d = d.substring(1 + 4 + 1 + 2 + 1 + 2 + 1);
+        }
+        return d;
     }
 
     private Map<String, String> parseKeyValuePairs(String line) {
@@ -213,12 +228,12 @@ public class SttCommander {
         String tmp;
         if (task.isDone()) {
             sb.append("x ");
+            if (!nz(task.getCompletionDate()) && AppSettings.get().isTodoAddCompletionDateEnabled()) {
+                task.setCompletionDate(getToday());
+            }
+            sb.append(task.getCompletionDate());
+            sb.append(" ");
             if (nz(tmp = task.getCreationDate())) {
-                if (!nz(task.getCompletionDate())) {
-                    task.setCompletionDate(getToday());
-                }
-                sb.append(task.getCompletionDate());
-                sb.append(" ");
                 sb.append(tmp);
                 sb.append(" ");
             }
@@ -238,7 +253,6 @@ public class SttCommander {
         sb.setLength(0);
         sb.append(tmp);
         sb.append(task.getDescription().trim());
-
 
         task.setTaskLine(sb.toString());
         return this;
@@ -325,6 +339,16 @@ public class SttCommander {
         return DATEF_YYYY_MM_DD.format(new Date());
     }
 
+    public static String getDaysFromToday(int days) {
+        Calendar cal = new GregorianCalendar();
+        cal.add(Calendar.DATE, days);
+        return DATEF_YYYY_MM_DD.format(cal.getTime());
+    }
+
+    public static boolean isTodoFile(String filepath) {
+        return filepath != null && SttCommander.TODOTXT_FILE_PATTERN.matcher(filepath).matches() && (filepath.endsWith(".txt") || filepath.endsWith(".text"));
+    }
+
     // Only captures the first group of each match
     private static List<String> parseAllUniqueMatchesWithOneValue(String text, Pattern pattern) {
         List<String> ret = new ArrayList<>();
@@ -353,9 +377,42 @@ public class SttCommander {
         return pattern.matcher(text).find();
     }
 
+    // Parse all tasks in (newline separated) tasks
+    public static ArrayList<SttTaskWithParserInfo> parseTasksFromTextWithParserInfo(String text) {
+        final ArrayList<SttTaskWithParserInfo> tasks = new ArrayList<>();
+        final SttCommander stt = SttCommander.get();
+        for (String task : text.split("\n")) {
+            tasks.add(stt.parseTask(task));
+        }
+        return tasks;
+    }
+
+    public static String tasksToString(Collection<? extends SttTaskWithParserInfo> tasks) {
+        final StringBuffer sb = new StringBuffer();
+        for (SttTaskWithParserInfo task : tasks) {
+            sb.append(task.getTaskLine());
+            sb.append("\n");
+        }
+        return sb.toString();
+    }
+
+    // Sort tasks array and return it. Changes input array.
+    public static List<? extends SttTask> sortTasks(List<? extends SttTask> tasks, String orderBy, Boolean descending) {
+        Collections.sort(tasks, new SttCommander.SttTaskSimpleComparator(orderBy, descending));
+        return tasks;
+    }
+
     public static class SttTaskSimpleComparator implements Comparator<SttTask> {
         private String _orderBy;
         private boolean _descending;
+
+        public static final String BY_PRIORITY = "priority";
+        public static final String BY_CONTEXT = "context";
+        public static final String BY_PROJECT = "project";
+        public static final String BY_CREATION_DATE = "creation_date";
+        public static final String BY_DUE_DATE = "due_date";
+        public static final String BY_DESCRIPTION = "description";
+        public static final String BY_LINE = "line_natural";
 
         public SttTaskSimpleComparator(String orderBy, Boolean descending) {
             _orderBy = orderBy;
@@ -366,16 +423,36 @@ public class SttCommander {
         public int compare(SttTask x, SttTask y) {
             int difference;
             switch (_orderBy) {
-                case "priority": {
+                case BY_PRIORITY: {
                     difference = compare(x.getPriority(), y.getPriority());
                     break;
                 }
-                case "context": {
+                case BY_CONTEXT: {
                     difference = compare(x.getContexts(), y.getContexts());
                     break;
                 }
-                case "project": {
+                case BY_PROJECT: {
                     difference = compare(x.getProjects(), y.getProjects());
+                    break;
+                }
+                case BY_CREATION_DATE: {
+                    difference = compare(x.getCreationDate(), y.getCreationDate());
+                    break;
+                }
+                case BY_DUE_DATE: {
+                    difference = compare(x.getDueDate(), y.getDueDate());
+                    break;
+                }
+                case BY_DESCRIPTION: {
+                    difference = compare(x.getDescription(), y.getDescription());
+                    break;
+                }
+                case BY_LINE: {
+                    if (x instanceof SttTaskParserInfoExtension && y instanceof SttTaskParserInfoExtension) {
+                        difference = compare(((SttTaskParserInfoExtension) x).getTaskLine(), ((SttTaskParserInfoExtension) y).getTaskLine());
+                    } else {
+                        difference = compare(x.getDescription(), y.getDescription());
+                    }
                     break;
                 }
                 default: {
@@ -388,15 +465,14 @@ public class SttCommander {
             return difference;
         }
 
+        private int compareNull(Object o1, Object o2) {
+            return ((o1 == null && o2 == null) || (o1 != null && o2 != null))
+                    ? 0
+                    : o1 == null ? -1 : 0;
+        }
+
         private int compare(Character x, Character y) {
-            return x.compareTo(y);/*
-            if (Character.toLowerCase(y) < Character.toLowerCase(x)) {
-                return 1;
-            }
-            if (Character.toLowerCase(y) == Character.toLowerCase(x)) {
-                return 0;
-            }
-            return -1;*/
+            return Character.compare(Character.toLowerCase(x), Character.toLowerCase(y));
         }
 
         private int compare(List<String> x, List<String> y) {
@@ -411,6 +487,15 @@ public class SttCommander {
             }
             return x.get(0).compareTo(y.get(0));
 
+        }
+
+        private int compare(String x, String y) {
+            int n = compareNull(x, y);
+            if (n != 0) {
+                return n;
+            } else {
+                return x.trim().toLowerCase().compareTo(y.trim().toLowerCase());
+            }
         }
     }
 }
