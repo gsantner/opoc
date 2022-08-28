@@ -20,16 +20,16 @@ import android.os.Environment;
 import java.io.BufferedReader;
 import java.io.File;
 import java.io.FileInputStream;
-import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.concurrent.atomic.AtomicReference;
 
 /**
  * Simple Parser for M3U playlists
  */
-@SuppressWarnings({"WeakerAccess", "CaughtExceptionImmediatelyRethrown", "unused", "SpellCheckingInspection", "TryFinallyCanBeTryWithResources"})
+@SuppressWarnings({"WeakerAccess", "CaughtExceptionImmediatelyRethrown", "unused", "SpellCheckingInspection"})
 public class SimpleM3UParser {
     private final static String EXTINF_TAG = "#EXTINF:";
     private final static String EXTINF_TVG_NAME = "tvg-name=\"";
@@ -45,62 +45,66 @@ public class SimpleM3UParser {
     // ## Members
     // ##
     // ########################
-    private ArrayList<M3U_Entry> _entries;
-    private M3U_Entry _lastEntry;
 
-    // Parse m3u file by reading content from file by filepath
-    public ArrayList<M3U_Entry> parse(String filepath) throws IOException {
-        return parse(new FileInputStream(filepath));
+    // Parse m3u file by reading content from file
+    public ArrayList<M3U_Entry> parse(File filepath) {
+        try {
+            return parse(new FileInputStream(filepath));
+        } catch (Exception ignored) {
+            return new ArrayList<>();
+        }
     }
 
     // Parse m3u file by reading from inputstream
-    public ArrayList<M3U_Entry> parse(InputStream inputStream) throws IOException {
-        _entries = new ArrayList<>();
-        BufferedReader br = null;
-        String line;
+    public ArrayList<M3U_Entry> parse(InputStream inputStream) {
 
-        try {
-            br = new BufferedReader(new InputStreamReader(inputStream));
+        StringBuilder text = new StringBuilder();
+        String line = "";
+        try (BufferedReader br = new BufferedReader(new InputStreamReader(inputStream))) {
             while ((line = br.readLine()) != null) {
-                try {
-                    parseLine(line);
-                } catch (Exception e) {
-                    _lastEntry = null;
-                }
+                text.append(line);
+                text.append("\n");
             }
-        } catch (IOException rethrow) {
-            throw rethrow;
-        } finally {
-            if (br != null) {
-                try {
-                    br.close();
-                } catch (IOException ignored) {
-                }
+        } catch (Exception ignored) {
+        }
+
+        return parse(text.toString());
+    }
+
+    public ArrayList<M3U_Entry> parse(String text) {
+        final AtomicReference<M3U_Entry> lastEntry = new AtomicReference<>(null);
+        final ArrayList<M3U_Entry> entries = new ArrayList<>();
+
+        text = text.trim().replace("\r", "");
+
+        for (String line : text.split("\n")) {
+            try {
+                parseLine(line, entries, lastEntry);
+            } catch (Exception e) {
+                lastEntry.set(null);
             }
         }
-        return _entries;
+        return entries;
     }
 
     // Parse one line of m3u
-    private void parseLine(String line) {
+    private void parseLine(String line, final List<M3U_Entry> entries, final AtomicReference<M3U_Entry> lastEntry) {
         line = line.trim();
 
-        // EXTINF line
         if (line.startsWith(EXTINF_TAG)) {
-            _lastEntry = parseExtInf(line);
-        }
-        // URL line (no comment, no empty line(trimmed))
-        else if (!line.isEmpty() && !line.startsWith("#")) {
-            if (_lastEntry == null) {
-                _lastEntry = new M3U_Entry();
+            // #EXTINF line
+            try {
+                lastEntry.set(parseExtInf(line));
+            } catch (Exception ignored) {
             }
-            _lastEntry.setUrl(line);
-            _entries.add(_lastEntry);
-            _lastEntry = null;
-        }
-        // No useable data -> reset last EXTINF for next entry
-        else {
-            _lastEntry = null;
+        } else if (!line.isEmpty() && !line.startsWith("#")) {
+            // URL line (no comment, no empty line(trimmed))
+            lastEntry.compareAndSet(null, new M3U_Entry());
+            lastEntry.get().url = line.trim();
+            entries.add(lastEntry.getAndSet(null));
+        } else {
+            // No useable data -> reset last EXTINF for next entry
+            lastEntry.set(null);
         }
     }
 
@@ -127,52 +131,50 @@ public class SimpleM3UParser {
         if (buf.length() == 0 || line.isEmpty()) {
             return curEntry;
         }
-        curEntry.setSeconds(Integer.valueOf(buf.toString()));
+        curEntry.seconds = Integer.parseInt(buf.toString());
 
         // tvg tags
-        while (!line.isEmpty() && !line.startsWith(",")) {
-            line = line.trim();
+        String old = null;
+        while (!line.isEmpty() && !line.startsWith(",") && !line.equals(old)) {
+            old = line = line.trim();
             if (line.startsWith(EXTINF_TVG_NAME) && line.length() > EXTINF_TVG_NAME.length()) {
                 line = line.substring(EXTINF_TVG_NAME.length());
                 int i = line.indexOf("\"");
-                curEntry.setTvgName(line.substring(0, i));
+                curEntry.tvgName = line.substring(0, i).replace("'", "");
                 line = line.substring(i + 1);
-            }
-            if (line.startsWith(EXTINF_TVG_LOGO) && line.length() > EXTINF_TVG_LOGO.length()) {
+            } else if (line.startsWith(EXTINF_TVG_LOGO) && line.length() > EXTINF_TVG_LOGO.length()) {
                 line = line.substring(EXTINF_TVG_LOGO.length());
                 int i = line.indexOf("\"");
-                curEntry.setTvgLogo(line.substring(0, i));
+                curEntry.tvgLogo = line.substring(0, i);
                 line = line.substring(i + 1);
-            }
-            if (line.startsWith(EXTINF_TVG_EPGURL) && line.length() > EXTINF_TVG_EPGURL.length()) {
+            } else if (line.startsWith(EXTINF_TVG_EPGURL) && line.length() > EXTINF_TVG_EPGURL.length()) {
                 line = line.substring(EXTINF_TVG_EPGURL.length());
                 int i = line.indexOf("\"");
-                curEntry.setTvgEpgUrl(line.substring(0, i));
+                curEntry.tvgEpgUrl = line.substring(0, i);
                 line = line.substring(i + 1);
-            }
-            if (line.startsWith(EXTINF_RADIO) && line.length() > EXTINF_RADIO.length()) {
+            } else if (line.startsWith(EXTINF_RADIO) && line.length() > EXTINF_RADIO.length()) {
                 line = line.substring(EXTINF_RADIO.length());
                 int i = line.indexOf("\"");
-                curEntry.setIsRadio(Boolean.parseBoolean(line.substring(0, i)));
+                curEntry.isRadio = Boolean.parseBoolean(line.substring(0, i));
                 line = line.substring(i + 1);
-            }
-            if (line.startsWith(EXTINF_GROUP_TITLE) && line.length() > EXTINF_GROUP_TITLE.length()) {
+            } else if (line.startsWith(EXTINF_GROUP_TITLE) && line.length() > EXTINF_GROUP_TITLE.length()) {
                 line = line.substring(EXTINF_GROUP_TITLE.length());
                 int i = line.indexOf("\"");
-                curEntry.setGroupTitle(line.substring(0, i));
+                curEntry.groupTitle = line.substring(0, i);
                 line = line.substring(i + 1);
-            }
-            if (line.startsWith(EXTINF_TVG_ID) && line.length() > EXTINF_TVG_ID.length()) {
+            } else if (line.startsWith(EXTINF_TVG_ID) && line.length() > EXTINF_TVG_ID.length()) {
                 line = line.substring(EXTINF_TVG_ID.length());
                 int i = line.indexOf("\"");
-                curEntry.setTvgId(line.substring(0, i));
+                curEntry.tvgId = line.substring(0, i);
                 line = line.substring(i + 1);
-            }
-            if (line.startsWith(EXTINF_TAGS) && line.length() > EXTINF_TAGS.length()) {
+            } else if (line.startsWith(EXTINF_TAGS) && line.length() > EXTINF_TAGS.length()) {
                 line = line.substring(EXTINF_TAGS.length());
                 int i = line.indexOf("\"");
-                curEntry.setTags(line.substring(0, i).split(","));
+                curEntry.tags = line.substring(0, i).split(",");
                 line = line.substring(i + 1);
+            } else {
+                line = line.substring(line.indexOf("\"") + 1);
+                line = line.substring(line.indexOf("\"") + 1);
             }
         }
 
@@ -182,7 +184,7 @@ public class SimpleM3UParser {
             line = line.substring(1);
             line = line.trim();
             if (!line.isEmpty()) {
-                curEntry.setName(line);
+                curEntry.name = line.replace("'", "");
             }
         }
         return curEntry;
@@ -192,89 +194,31 @@ public class SimpleM3UParser {
      * Data class for M3U Entries with getters & setters
      */
     public static class M3U_Entry {
-        private String _tvgName, _name;
-        private String _tvgLogo;
-        private String _tvgEpgUrl;
-        private String _tvgId;
-        private String _groupTitle;
-        private String _url;
-        private String[] _tags = new String[0];
-        private int _seconds = -1;
-        private boolean _isRadio = false;
+        public String tvgName, name;
+        public String tvgLogo;
+        public String tvgEpgUrl;
+        public String tvgId;
+        public String groupTitle;
+        public String url;
+        public String[] tags = new String[0];
+        public int seconds = -1;
+        public boolean isRadio = false;
 
-        public void setTvgName(String value) {
-            _tvgName = value;
-        }
         public String getName() {
-            return _tvgName != null ? _tvgName : _name;
-        }
-
-        public void setName(String value) {
-            _name = value;
-        }
-
-        public String getTvgLogo() {
-            return _tvgLogo;
-        }
-
-        public void setTvgLogo(String value) {
-            _tvgLogo = value;
+            if (tvgName != null) {
+                return tvgName;
+            } else if (name != null) {
+                return name;
+            } else if (url != null) {
+                String t = url.replaceFirst("(?i)https?:..", "");
+                t = t.length() < 27 ? t : t.replaceFirst("(.{20}).+(.{7})", "$1…$2");
+                return t;
+            }
+            return "";
         }
 
         public String getUrl() {
-            return _url;
-        }
-
-        public void setUrl(String value) {
-            _url = value;
-        }
-
-        public int getSeconds() {
-            return _seconds;
-        }
-
-        public void setSeconds(int value) {
-            _seconds = value;
-        }
-
-        public String getTvgEpgUrl() {
-            return _tvgEpgUrl;
-        }
-
-        public void setTvgEpgUrl(String value) {
-            _tvgEpgUrl = value;
-        }
-
-        public boolean isRadio() {
-            return _isRadio;
-        }
-
-        public String getTvgId() {
-            return _tvgId;
-        }
-
-        public void setTvgId(String value) {
-            _tvgId = value;
-        }
-
-        public String getGroupTitle() {
-            return _groupTitle;
-        }
-
-        public void setGroupTitle(String value) {
-            _groupTitle = value;
-        }
-
-        public void setIsRadio(boolean value) {
-            _isRadio = value;
-        }
-
-        public String[] getTags() {
-            return _tags;
-        }
-
-        public void setTags(String[] value) {
-            _tags = value;
+            return url == null ? "" : url;
         }
 
         @Override
@@ -290,32 +234,22 @@ public class SimpleM3UParser {
     //
     public static class Examples {
         public static List<M3U_Entry> example() {
-            try {
-                SimpleM3UParser simpleM3UParser = new SimpleM3UParser();
-                File moviesFolder = new File(Environment.getExternalStorageDirectory(), Environment.DIRECTORY_MOVIES);
-                return simpleM3UParser.parse(new File(moviesFolder, "streams.m3u").getAbsolutePath());
-            } catch (IOException e) {
-                e.printStackTrace();
-            }
-            return new ArrayList<>();
+            SimpleM3UParser simpleM3UParser = new SimpleM3UParser();
+            File moviesFolder = new File(Environment.getExternalStorageDirectory(), Environment.DIRECTORY_MOVIES);
+            return simpleM3UParser.parse(new File(moviesFolder, "streams.m3u"));
         }
 
         public static List<M3U_Entry> exampleWithLogoRewrite() {
             List<M3U_Entry> playlist = new ArrayList<>();
-            try {
-                SimpleM3UParser simpleM3UParser = new SimpleM3UParser();
-                File moviesFolder = new File(new File(Environment.getExternalStorageDirectory(), Environment.DIRECTORY_MOVIES), "liveStreams");
-                File logosFolder = new File(moviesFolder, "Senderlogos");
-                File streams = new File(moviesFolder, "streams.m3u");
-                for (M3U_Entry entry : simpleM3UParser.parse(streams.getAbsolutePath())) {
-                    if (entry.getTvgLogo() != null) {
-                        String logo = new File(logosFolder, entry.getTvgLogo()).getAbsolutePath();
-                        entry.setTvgLogo(logo);
-                    }
-                    playlist.add(entry);
+            SimpleM3UParser simpleM3UParser = new SimpleM3UParser();
+            File moviesFolder = new File(new File(Environment.getExternalStorageDirectory(), Environment.DIRECTORY_MOVIES), "liveStreams");
+            File logosFolder = new File(moviesFolder, "Senderlogos");
+            File streams = new File(moviesFolder, "streams.m3u");
+            for (M3U_Entry entry : simpleM3UParser.parse(streams)) {
+                if (entry.tvgLogo != null) {
+                    entry.tvgLogo = new File(logosFolder, entry.tvgLogo).getAbsolutePath();
                 }
-            } catch (IOException e) {
-                e.printStackTrace();
+                playlist.add(entry);
             }
             return playlist;
         }
