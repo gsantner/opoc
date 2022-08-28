@@ -1,19 +1,16 @@
 /*#######################################################
  *
- *   Maintained by Gregor Santner, 2019-
- *   https://gsantner.net/
- *
- *   License: Apache 2.0 / Commercial
- *  https://github.com/gsantner/opoc/#licensing
- *  https://www.apache.org/licenses/LICENSE-2.0
+ * SPDX-FileCopyrightText: 2019-2022 Gregor Santner <https://gsantner.net/>
+ * SPDX-License-Identifier: Unlicense OR CC0-1.0
  *
 #########################################################*/
 
 /*
  * Simple Parser for M3U playlists with some extensions
  * Mainly for playlists with video streams
+ * See https://gsantner.net/blog/2019/07/26/simple-m3u-playlist-parser-iptv-m3u8-android-java.html
  */
-package net.gsantner.opoc.format;
+package net.gsantner.opoc.format.playlist;
 
 import android.app.Activity;
 import android.content.Intent;
@@ -208,7 +205,6 @@ public class SimpleM3UParser {
         public void setTvgName(String value) {
             _tvgName = value;
         }
-
         public String getName() {
             return _tvgName != null ? _tvgName : _name;
         }
